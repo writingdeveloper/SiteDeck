@@ -46,3 +46,15 @@ export function comparisonRanges(period: Period, asOf: Date = new Date()): Compa
     previous: { startDate: iso(startPrevious), endDate: iso(endPrevious) },
   };
 }
+
+/** Every calendar day in an inclusive range as GA-style YYYYMMDD strings. */
+export function enumerateDays(range: DateRange): string[] {
+  const out: string[] = [];
+  let day = utcMidnight(new Date(`${range.startDate}T00:00:00Z`));
+  const end = utcMidnight(new Date(`${range.endDate}T00:00:00Z`));
+  while (day.getTime() <= end.getTime()) {
+    out.push(iso(day).replace(/-/g, ''));
+    day = addDays(day, 1);
+  }
+  return out;
+}

@@ -12,6 +12,7 @@ export interface SiteSummary {
   activeUsers: MetricDelta;
   sessions: MetricDelta;
   keyEvents: MetricDelta;
+  trend: number[];
   topPage: string | null;
   topSource: string | null;
 }

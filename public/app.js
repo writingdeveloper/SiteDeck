@@ -25,6 +25,16 @@ function fmtDelta(pct) {
   return `<span class="delta ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%</span>`;
 }
 
+function sparkline(values, w = 84, h = 24) {
+  if (!values || values.length === 0) return "";
+  const max = Math.max(...values, 1);
+  const stepX = values.length > 1 ? w / (values.length - 1) : 0;
+  const pts = values
+    .map((v, i) => `${(i * stepX).toFixed(1)},${(h - 1 - (v / max) * (h - 2)).toFixed(1)}`)
+    .join(" ");
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>`;
+}
+
 function escapeHtml(s) {
   return String(s).replace(
     /[&<>"']/g,
@@ -73,6 +83,7 @@ function render() {
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
         <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
         <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
+        <td class="spark-cell">${sparkline(s.trend)}</td>
       </tr>`,
     )
     .join("");

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { comparisonRanges } from './periods';
+import { comparisonRanges, enumerateDays } from './periods';
 import { PERIODS } from './config';
 
 // Fixed "now" so tests are deterministic. GA only counts full days, so the
@@ -42,5 +42,28 @@ describe('comparisonRanges', () => {
     expect(dayCount(current)).toBe(period);
     expect(dayCount(previous)).toBe(period);
     expect(nextDay(previous.endDate)).toBe(current.startDate);
+  });
+});
+
+describe('enumerateDays', () => {
+  it('lists each day of an inclusive range as YYYYMMDD (GA date format)', () => {
+    expect(enumerateDays({ startDate: '2026-06-06', endDate: '2026-06-12' })).toEqual([
+      '20260606',
+      '20260607',
+      '20260608',
+      '20260609',
+      '20260610',
+      '20260611',
+      '20260612',
+    ]);
+  });
+
+  it('spans month boundaries', () => {
+    expect(enumerateDays({ startDate: '2026-05-30', endDate: '2026-06-02' })).toEqual([
+      '20260530',
+      '20260531',
+      '20260601',
+      '20260602',
+    ]);
   });
 });

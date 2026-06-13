@@ -1,7 +1,7 @@
 import { AnalyticsAdminServiceClient } from '@google-analytics/admin';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import type { OAuth2Client } from 'google-auth-library';
-import type { DateRange } from './periods';
+import { enumerateDays, type DateRange } from './periods';
 
 export interface PropertyRef {
   propertyId: string;
@@ -84,4 +84,25 @@ export async function fetchTopValue(
   });
   const value = report.rows?.[0]?.dimensionValues?.[0]?.value;
   return value && value !== '(not set)' ? value : null;
+}
+
+/** Daily values of `metric` over a range, zero-filled and in chronological order. */
+export async function fetchDailySeries(
+  auth: OAuth2Client,
+  propertyId: string,
+  range: DateRange,
+  metric = 'activeUsers',
+): Promise<number[]> {
+  const [report] = await data(auth).runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
+    dimensions: [{ name: 'date' }],
+    metrics: [{ name: metric }],
+  });
+  const byDay = new Map<string, number>();
+  for (const row of report.rows ?? []) {
+    const day = row.dimensionValues?.[0]?.value;
+    if (day) byDay.set(day, Number(row.metricValues?.[0]?.value ?? 0));
+  }
+  return enumerateDays(range).map((day) => byDay.get(day) ?? 0);
 }

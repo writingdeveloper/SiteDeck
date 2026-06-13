@@ -76,7 +76,7 @@ select:hover {
 
 main {
   padding: 20px;
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -175,6 +175,15 @@ td.top {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.spark-cell {
+  color: var(--accent);
+  width: 100px;
+}
+
+svg.spark {
+  display: block;
 }
 
 .delta {
