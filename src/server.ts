@@ -63,6 +63,7 @@ async function buildSummary(period: Period): Promise<{
             displayName: p.displayName,
             activeUsers: metricDelta(cur.activeUsers, prev.activeUsers),
             sessions: metricDelta(cur.sessions, prev.sessions),
+            keyEvents: metricDelta(cur.keyEvents, prev.keyEvents),
             topPage,
             topSource,
           };

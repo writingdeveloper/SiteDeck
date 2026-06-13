@@ -11,6 +11,7 @@ export interface PropertyRef {
 export interface RangeMetrics {
   activeUsers: number;
   sessions: number;
+  keyEvents: number;
 }
 
 let adminClient: AnalyticsAdminServiceClient | null = null;
@@ -55,12 +56,13 @@ export async function fetchRange(
   const [report] = await data(auth).runReport({
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
-    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'keyEvents' }],
   });
   const row = report.rows?.[0];
   return {
     activeUsers: Number(row?.metricValues?.[0]?.value ?? 0),
     sessions: Number(row?.metricValues?.[1]?.value ?? 0),
+    keyEvents: Number(row?.metricValues?.[2]?.value ?? 0),
   };
 }
 
