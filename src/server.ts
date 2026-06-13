@@ -6,7 +6,7 @@ import open from 'open';
 import { OAUTH_CALLBACK_PATH, PERIODS, PORT, type Period } from './config';
 import { getAuthUrl, getClient, handleCallback, isAuthenticated } from './auth';
 import { comparisonRanges } from './periods';
-import { fetchRange, listProperties } from './ga';
+import { fetchRange, fetchTopValue, listProperties } from './ga';
 import { metricDelta, type SiteSummary } from './summary';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,15 +52,19 @@ async function buildSummary(period: Period): Promise<{
     await Promise.all(
       props.map(async (p): Promise<SiteSummary | null> => {
         try {
-          const [cur, prev] = await Promise.all([
+          const [cur, prev, topPage, topSource] = await Promise.all([
             fetchRange(auth, p.propertyId, ranges.current),
             fetchRange(auth, p.propertyId, ranges.previous),
+            fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
+            fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
           ]);
           return {
             propertyId: p.propertyId,
             displayName: p.displayName,
             activeUsers: metricDelta(cur.activeUsers, prev.activeUsers),
             sessions: metricDelta(cur.sessions, prev.sessions),
+            topPage,
+            topSource,
           };
         } catch (err) {
           errors.push({

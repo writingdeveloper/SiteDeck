@@ -63,3 +63,23 @@ export async function fetchRange(
     sessions: Number(row?.metricValues?.[1]?.value ?? 0),
   };
 }
+
+/** The single top dimension value (by `metric`, descending) for a property over a range. */
+export async function fetchTopValue(
+  auth: OAuth2Client,
+  propertyId: string,
+  range: DateRange,
+  dimension: string,
+  metric: string,
+): Promise<string | null> {
+  const [report] = await data(auth).runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
+    dimensions: [{ name: dimension }],
+    metrics: [{ name: metric }],
+    orderBys: [{ metric: { metricName: metric }, desc: true }],
+    limit: 1,
+  });
+  const value = report.rows?.[0]?.dimensionValues?.[0]?.value;
+  return value && value !== '(not set)' ? value : null;
+}

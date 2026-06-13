@@ -70,6 +70,8 @@ function render() {
         <td class="name">${escapeHtml(s.displayName)}</td>
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
+        <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
+        <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
       </tr>`,
     )
     .join("");

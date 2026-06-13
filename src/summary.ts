@@ -11,6 +11,8 @@ export interface SiteSummary {
   displayName: string;
   activeUsers: MetricDelta;
   sessions: MetricDelta;
+  topPage: string | null;
+  topSource: string | null;
 }
 
 /**
