@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SiteDeck</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="logo">▦</span> SiteDeck</div>
+      <div class="controls">
+        <label
+          >기간
+          <select id="period">
+            <option value="7">7일</option>
+            <option value="28" selected>28일</option>
+            <option value="90">90일</option>
+          </select>
+        </label>
+        <button id="refresh" type="button">새로고침</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="status" class="status" hidden></div>
+
+      <table id="table" hidden>
+        <thead>
+          <tr>
+            <th class="sortable" data-sort="name">사이트</th>
+            <th class="sortable num" data-sort="activeUsers">활성 사용자</th>
+            <th class="sortable num" data-sort="sessions">세션</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="meta" id="meta"></div>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

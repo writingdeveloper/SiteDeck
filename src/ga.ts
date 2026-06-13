@@ -1,0 +1,65 @@
+import { AnalyticsAdminServiceClient } from '@google-analytics/admin';
+import { BetaAnalyticsDataClient } from '@google-analytics/data';
+import type { OAuth2Client } from 'google-auth-library';
+import type { DateRange } from './periods';
+
+export interface PropertyRef {
+  propertyId: string;
+  displayName: string;
+}
+
+export interface RangeMetrics {
+  activeUsers: number;
+  sessions: number;
+}
+
+let adminClient: AnalyticsAdminServiceClient | null = null;
+let dataClient: BetaAnalyticsDataClient | null = null;
+
+// The GA client libraries bundle their own copy of google-auth-library, so our
+// OAuth2Client is structurally identical but nominally incompatible with their
+// expected auth type. The cast bridges that dual-package hazard (runtime is fine).
+function gaOptions(auth: OAuth2Client) {
+  return { authClient: auth as never, fallback: true };
+}
+
+function admin(auth: OAuth2Client): AnalyticsAdminServiceClient {
+  return (adminClient ??= new AnalyticsAdminServiceClient(gaOptions(auth)));
+}
+
+function data(auth: OAuth2Client): BetaAnalyticsDataClient {
+  return (dataClient ??= new BetaAnalyticsDataClient(gaOptions(auth)));
+}
+
+/** Every GA4 property the authenticated user can access, across all accounts. */
+export async function listProperties(auth: OAuth2Client): Promise<PropertyRef[]> {
+  const [summaries] = await admin(auth).listAccountSummaries();
+  const props: PropertyRef[] = [];
+  for (const account of summaries) {
+    for (const p of account.propertySummaries ?? []) {
+      const propertyId = (p.property ?? '').split('/')[1] ?? '';
+      if (propertyId) {
+        props.push({ propertyId, displayName: p.displayName ?? propertyId });
+      }
+    }
+  }
+  return props;
+}
+
+/** activeUsers + sessions totals for one property over a single date range. */
+export async function fetchRange(
+  auth: OAuth2Client,
+  propertyId: string,
+  range: DateRange,
+): Promise<RangeMetrics> {
+  const [report] = await data(auth).runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
+    metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+  });
+  const row = report.rows?.[0];
+  return {
+    activeUsers: Number(row?.metricValues?.[0]?.value ?? 0),
+    sessions: Number(row?.metricValues?.[1]?.value ?? 0),
+  };
+}

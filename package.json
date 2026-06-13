@@ -1,0 +1,40 @@
+{
+  "name": "sitedeck",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "여러 GA4 사이트의 핵심 지표를 한 화면에 요약하는 로컬 대시보드",
+  "license": "MIT",
+  "author": "Si Hyeong Lee",
+  "keywords": [
+    "google-analytics",
+    "ga4",
+    "analytics",
+    "dashboard",
+    "oauth",
+    "typescript",
+    "self-hosted"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@google-analytics/admin": "^9.1.0",
+    "@google-analytics/data": "^6.1.0",
+    "google-auth-library": "^10.7.0",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
