@@ -74,6 +74,22 @@ select:hover {
   border-color: var(--accent);
 }
 
+/* Keyboard focus ring — visible for tab/keyboard users, not on mouse click. */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Inset on header cells so the ring isn't clipped by the table's overflow. */
+th.sortable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  color: var(--text);
+}
+
 main {
   padding: 20px;
   max-width: 1200px;

@@ -34,13 +34,13 @@
         <table id="table" hidden>
           <thead>
             <tr>
-              <th class="sortable" data-sort="name" data-i18n="col.site">Site</th>
-              <th class="sortable num" data-sort="activeUsers" data-i18n="col.activeUsers">Active users</th>
-              <th class="sortable num" data-sort="sessions" data-i18n="col.sessions">Sessions</th>
-              <th class="sortable num" data-sort="keyEvents" data-i18n="col.keyEvents">Key events</th>
-              <th data-i18n="col.topPage">Top page</th>
-              <th data-i18n="col.topSource">Top channel</th>
-              <th data-i18n="col.trend">Trend</th>
+              <th class="sortable" data-sort="name" scope="col" tabindex="0" aria-sort="none" data-i18n="col.site">Site</th>
+              <th class="sortable num" data-sort="activeUsers" scope="col" tabindex="0" aria-sort="none" data-i18n="col.activeUsers">Active users</th>
+              <th class="sortable num" data-sort="sessions" scope="col" tabindex="0" aria-sort="none" data-i18n="col.sessions">Sessions</th>
+              <th class="sortable num" data-sort="keyEvents" scope="col" tabindex="0" aria-sort="none" data-i18n="col.keyEvents">Key events</th>
+              <th scope="col" data-i18n="col.topPage">Top page</th>
+              <th scope="col" data-i18n="col.topSource">Top channel</th>
+              <th scope="col" data-i18n="col.trend">Trend</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -56,13 +56,13 @@
         <table id="insights-table" hidden>
           <thead>
             <tr>
-              <th data-i18n="col.site">Site</th>
-              <th class="num" data-i18n="col.performance">Performance</th>
-              <th class="num" data-i18n="col.accessibility">Accessibility</th>
-              <th class="num" data-i18n="col.bestPractices">Best Practices</th>
-              <th class="num" data-i18n="col.seo">SEO</th>
-              <th data-i18n="col.measuredAt">Measured</th>
-              <th data-i18n="col.trend">Trend</th>
+              <th scope="col" data-i18n="col.site">Site</th>
+              <th class="num" scope="col" data-i18n="col.performance">Performance</th>
+              <th class="num" scope="col" data-i18n="col.accessibility">Accessibility</th>
+              <th class="num" scope="col" data-i18n="col.bestPractices">Best Practices</th>
+              <th class="num" scope="col" data-i18n="col.seo">SEO</th>
+              <th scope="col" data-i18n="col.measuredAt">Measured</th>
+              <th scope="col" data-i18n="col.trend">Trend</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -90,8 +90,12 @@
               <button id="psi-save" type="button" data-i18n="btn.save">Save</button>
             </span>
             <small id="psi-status" class="muted"></small>
-            <small id="cred-status" class="muted"></small>
           </label>
+
+          <div class="field">
+            <span data-i18n="settings.credentialsLabel">Google OAuth credentials</span>
+            <small id="cred-status" class="muted"></small>
+          </div>
 
           <div class="field">
             <span data-i18n="settings.versionLabel">Version</span>

@@ -16,7 +16,13 @@ const els = {
 };
 
 function fmtNum(n) {
-  return typeof n === "number" ? n.toLocaleString() : "—";
+  return typeof n === "number" ? n.toLocaleString(getLocale()) : "—";
+}
+
+function fmtWhen(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return isNaN(d) ? "—" : d.toLocaleString(getLocale());
 }
 
 function fmtDelta(pct) {
@@ -46,9 +52,12 @@ function escapeHtml(s) {
 
 function localizeError(error) {
   if (!error) return "";
+  // detail is interpolated into innerHTML (status messages keep an <a> link),
+  // so escape it — it can be an arbitrary server-supplied message.
+  const detail = escapeHtml(error.detail ?? "");
   const key = `error.${error.code}`;
-  const msg = t(key, { detail: error.detail ?? "" });
-  return msg === key ? t("error.unknown", { detail: error.detail ?? error.code }) : msg;
+  const msg = t(key, { detail });
+  return msg === key ? t("error.unknown", { detail: detail || escapeHtml(error.code) }) : msg;
 }
 
 function setStatus(html, kind) {
@@ -76,9 +85,15 @@ function sortedSites() {
 function render() {
   els.headers.forEach((th) => {
     const key = th.dataset.sort;
-    th.classList.toggle("sorted", key === state.sortKey);
-    if (key === state.sortKey) th.dataset.dir = state.sortDir;
-    else th.removeAttribute("data-dir");
+    const active = key === state.sortKey;
+    th.classList.toggle("sorted", active);
+    if (active) {
+      th.dataset.dir = state.sortDir;
+      th.setAttribute("aria-sort", state.sortDir === "asc" ? "ascending" : "descending");
+    } else {
+      th.removeAttribute("data-dir");
+      th.setAttribute("aria-sort", "none");
+    }
   });
 
   const sites = sortedSites();
@@ -137,7 +152,7 @@ async function load() {
 
     setStatus("", "info");
     render();
-    const when = new Date(data.generatedAt).toLocaleString();
+    const when = fmtWhen(data.generatedAt);
     els.meta.textContent = `${t("meta.summary", { count: data.sites.length, period: data.period, when })}${data.errors?.length ? t("meta.errorsSuffix", { count: data.errors.length }) : ""}`;
   } catch (err) {
     setStatus(
@@ -153,20 +168,28 @@ function applyPeriodOptions() {
   });
 }
 
+function toggleSort(th) {
+  const key = th.dataset.sort;
+  if (state.sortKey === key) {
+    state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    state.sortKey = key;
+    state.sortDir = key === "name" ? "asc" : "desc";
+  }
+  render();
+}
+
 els.refresh.addEventListener("click", load);
 els.period.addEventListener("change", load);
-els.headers.forEach((th) =>
-  th.addEventListener("click", () => {
-    const key = th.dataset.sort;
-    if (state.sortKey === key) {
-      state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
-    } else {
-      state.sortKey = key;
-      state.sortDir = key === "name" ? "asc" : "desc";
+els.headers.forEach((th) => {
+  th.addEventListener("click", () => toggleSort(th));
+  th.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleSort(th);
     }
-    render();
-  }),
-);
+  });
+});
 
 const tabs = document.querySelectorAll(".tab");
 const views = {
@@ -211,7 +234,7 @@ function renderInsights(data) {
   insights.tbody.innerHTML = sites
     .map((s) => {
       const l = s.latest ?? {};
-      const when = l.ts ? new Date(l.ts).toLocaleString() : "—";
+      const when = fmtWhen(l.ts);
       return `<tr>
         <td class="name">${escapeHtml(s.displayName)}</td>
         <td class="num">${scoreCell(l.performance)}</td>
@@ -224,7 +247,7 @@ function renderInsights(data) {
     })
     .join("");
   insights.meta.textContent = data.lastRunAt
-    ? `${t("insights.lastMeasured", { when: new Date(data.lastRunAt).toLocaleString() })}${data.errors?.length ? t("insights.errorsSuffix", { count: data.errors.length }) : ""}`
+    ? `${t("insights.lastMeasured", { when: fmtWhen(data.lastRunAt) })}${data.errors?.length ? t("insights.errorsSuffix", { count: data.errors.length }) : ""}`
     : "";
 }
 
@@ -247,8 +270,15 @@ async function loadInsights() {
 }
 
 insights.measure.addEventListener("click", async () => {
-  await fetch("/api/insights/measure", { method: "POST" });
-  loadInsights();
+  try {
+    const res = await fetch("/api/insights/measure", { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    loadInsights();
+  } catch (err) {
+    insights.status.hidden = false;
+    insights.status.className = "status error";
+    insights.status.textContent = err?.message ?? String(err);
+  }
 });
 
 const settings = {
@@ -284,28 +314,43 @@ settings.lang.addEventListener("change", async () => {
   rerenderAll();
 });
 
+function showSettingsStatus(text, kind) {
+  settings.status.hidden = !text;
+  settings.status.className = `status ${kind}`;
+  settings.status.textContent = text;
+}
+
 settings.psiSave.addEventListener("click", async () => {
-  await fetch("/api/settings", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ psiApiKey: settings.psiKey.value }),
-  });
-  settings.psiKey.value = "";
-  settings.status.hidden = false;
-  settings.status.className = "status info";
-  settings.status.textContent = t("settings.saved");
-  loadSettings();
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ psiApiKey: settings.psiKey.value }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.error?.detail ?? `HTTP ${res.status}`);
+    settings.psiKey.value = "";
+    showSettingsStatus(t("settings.saved"), "info");
+    loadSettings();
+  } catch (err) {
+    showSettingsStatus(t("error.unknown", { detail: err?.message ?? String(err) }), "error");
+  }
 });
 
 settings.checkUpdate.addEventListener("click", async () => {
-  const v = await (await fetch("/api/version")).json();
-  settings.versionCurrent.textContent = `v${v.current}`;
-  settings.updateStatus.textContent = v.updateAvailable
-    ? t("settings.updateAvailable", { version: `v${v.latest}` })
-    : t("settings.upToDate");
+  try {
+    const v = await (await fetch("/api/version")).json();
+    settings.versionCurrent.textContent = `v${v.current}`;
+    settings.updateStatus.textContent = v.updateAvailable
+      ? t("settings.updateAvailable", { version: `v${v.latest}` })
+      : t("settings.upToDate");
+  } catch (err) {
+    settings.updateStatus.textContent = t("error.unknown", { detail: err?.message ?? String(err) });
+  }
 });
 
 function rerenderAll() {
+  document.documentElement.lang = getLocale();
   applyI18n();
   applyPeriodOptions();
   if (state.data) render();
@@ -330,6 +375,7 @@ tabs.forEach((tab) =>
   try { stored = (await (await fetch("/api/settings")).json()).language; } catch {}
   if (!stored) { try { stored = localStorage.getItem("sitedeck.locale"); } catch {} }
   await initI18n(stored);
+  document.documentElement.lang = getLocale();
   applyI18n();
   applyPeriodOptions();
   load();
