@@ -236,3 +236,42 @@ svg.spark {
 .score.avg { color: var(--warn); background: rgba(210, 153, 34, 0.12); }
 .score.poor { color: var(--down); background: rgba(248, 81, 73, 0.12); }
 .score.na { color: var(--muted); }
+.settings {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 640px;
+}
+.settings .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings .field > span:first-child {
+  font-weight: 600;
+}
+.settings .field-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.settings input {
+  flex: 1;
+  min-width: 220px;
+  background: #0d1117;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.settings .muted {
+  color: var(--muted);
+}
+.settings a {
+  color: var(--accent);
+}
