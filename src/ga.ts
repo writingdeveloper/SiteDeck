@@ -106,3 +106,24 @@ export async function fetchDailySeries(
   }
   return enumerateDays(range).map((day) => byDay.get(day) ?? 0);
 }
+
+export interface SiteUrl {
+  propertyId: string;
+  displayName: string;
+  url: string;
+}
+
+/** Each property's first web data stream URL (defaultUri). Non-web properties are skipped. */
+export async function listSiteUrls(auth: OAuth2Client): Promise<SiteUrl[]> {
+  const props = await listProperties(auth);
+  const client = admin(auth);
+  const out: SiteUrl[] = [];
+  await Promise.all(
+    props.map(async (p) => {
+      const [streams] = await client.listDataStreams({ parent: `properties/${p.propertyId}` });
+      const url = streams.find((s) => s.webStreamData?.defaultUri)?.webStreamData?.defaultUri;
+      if (url) out.push({ propertyId: p.propertyId, displayName: p.displayName, url });
+    }),
+  );
+  return out;
+}
