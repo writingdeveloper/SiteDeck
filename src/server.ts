@@ -1,10 +1,14 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import open from 'open';
-import { OAUTH_CALLBACK_PATH, PERIODS, PORT, type Period } from './config';
+import { CREDENTIALS_PATH, OAUTH_CALLBACK_PATH, PERIODS, PORT, type Period } from './config';
 import { getAuthUrl, getClient, handleCallback, isAuthenticated } from './auth';
+import { AppError } from './errors';
+import { getSettings, updateSettings, type Settings } from './settings';
+import { tServer } from './i18n';
 import { comparisonRanges } from './periods';
 import { fetchDailySeries, fetchRange, fetchTopValue, listProperties } from './ga';
 import { metricDelta, type SiteSummary } from './summary';
@@ -101,6 +105,54 @@ async function serveStatic(res: http.ServerResponse, urlPath: string): Promise<v
   }
 }
 
+function errorBody(err: unknown): { error: { code: string; detail?: string } } {
+  if (err instanceof AppError) return { error: { code: err.code, detail: err.detail } };
+  return { error: { code: 'unknown', detail: err instanceof Error ? err.message : String(err) } };
+}
+
+function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => {
+      data += chunk;
+      if (data.length > 1_000_000) reject(new Error('body too large'));
+    });
+    req.on('end', () => {
+      try {
+        resolve(data ? (JSON.parse(data) as Record<string, unknown>) : {});
+      } catch {
+        resolve({});
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+interface VersionInfo {
+  current: string;
+  latest: string | null;
+  updateAvailable: boolean;
+}
+
+async function getVersion(): Promise<VersionInfo> {
+  const pkg = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), 'utf8')) as {
+    version: string;
+  };
+  let latest: string | null = null;
+  try {
+    const res = await fetch('https://api.github.com/repos/writingdeveloper/SiteDeck/releases/latest', {
+      headers: { accept: 'application/vnd.github+json' },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { tag_name?: string };
+      latest = data.tag_name ? data.tag_name.replace(/^v/, '') : null;
+    }
+  } catch {
+    latest = null;
+  }
+  return { current: pkg.version, latest, updateAvailable: latest !== null && latest !== pkg.version };
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
@@ -113,7 +165,7 @@ const server = http.createServer(async (req, res) => {
       }
       json(res, 200, await buildSummary(period));
     } catch (err) {
-      json(res, 500, { error: err instanceof Error ? err.message : String(err) });
+      json(res, 500, errorBody(err));
     }
     return;
   }
@@ -122,13 +174,40 @@ const server = http.createServer(async (req, res) => {
     try {
       json(res, 200, getInsightsState());
     } catch (err) {
-      json(res, 500, { error: err instanceof Error ? err.message : String(err) });
+      json(res, 500, errorBody(err));
     }
     return;
   }
 
   if (url.pathname === '/api/insights/measure' && req.method === 'POST') {
     json(res, 200, measureNow());
+    return;
+  }
+
+  if (url.pathname === '/api/settings' && req.method === 'GET') {
+    const s = await getSettings();
+    json(res, 200, {
+      language: s.language ?? null,
+      hasPsiKey: Boolean(s.psiApiKey),
+      psiKeyMasked: s.psiApiKey ? `${s.psiApiKey.slice(0, 6)}…${s.psiApiKey.slice(-4)}` : null,
+      hasCredentials: existsSync(CREDENTIALS_PATH),
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/settings' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const s = await updateSettings(body as Partial<Settings>);
+      json(res, 200, { language: s.language ?? null, hasPsiKey: Boolean(s.psiApiKey) });
+    } catch (err) {
+      json(res, 500, errorBody(err));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/version') {
+    json(res, 200, await getVersion());
     return;
   }
 
@@ -145,12 +224,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === OAUTH_CALLBACK_PATH) {
+    const locale = (await getSettings()).language ?? 'en';
     const code = url.searchParams.get('code');
     const oauthError = url.searchParams.get('error');
     if (oauthError || !code) {
       res
         .writeHead(400, { 'content-type': 'text/html; charset=utf-8' })
-        .end(`<p>인증 실패: ${oauthError ?? 'code 없음'}</p>`);
+        .end(`<p>${tServer(locale, 'oauth.failed', { detail: oauthError ?? tServer(locale, 'oauth.noCode') })}</p>`);
       return;
     }
     try {
@@ -158,12 +238,12 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
         `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="1; url=/">` +
           `<body style="font-family:sans-serif;background:#0d1117;color:#e6edf3;padding:40px">` +
-          `✅ 인증 완료. 대시보드로 돌아갑니다…</body>`,
+          `✅ ${tServer(locale, 'oauth.success')}</body>`,
       );
     } catch (err) {
       res
         .writeHead(500, { 'content-type': 'text/html; charset=utf-8' })
-        .end(`<p>토큰 교환 실패: ${err instanceof Error ? err.message : String(err)}</p>`);
+        .end(`<p>${tServer(locale, 'oauth.tokenFailed', { detail: err instanceof Error ? err.message : String(err) })}</p>`);
     }
     return;
   }
