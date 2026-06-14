@@ -8,6 +8,7 @@ import { getAuthUrl, getClient, handleCallback, isAuthenticated } from './auth';
 import { comparisonRanges } from './periods';
 import { fetchDailySeries, fetchRange, fetchTopValue, listProperties } from './ga';
 import { metricDelta, type SiteSummary } from './summary';
+import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -117,6 +118,20 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/insights') {
+    try {
+      json(res, 200, getInsightsState());
+    } catch (err) {
+      json(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/insights/measure' && req.method === 'POST') {
+    json(res, 200, measureNow());
+    return;
+  }
+
   if (url.pathname === '/oauth/start') {
     try {
       const auth = await getClient();
@@ -158,6 +173,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`SiteDeck → http://localhost:${PORT}`);
+  void initInsights().then(startInsightsScheduler);
   if (!process.env.SITEDECK_NO_OPEN) {
     void open(`http://localhost:${PORT}`);
   }
