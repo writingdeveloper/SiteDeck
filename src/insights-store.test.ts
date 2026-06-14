@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { emptyStore, appendMeasurement, shouldMeasure, summarize } from './insights-store';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import {
+  emptyStore,
+  appendMeasurement,
+  shouldMeasure,
+  summarize,
+  saveStore,
+  loadStore,
+} from './insights-store';
 
 const m = (ts: string, p: number) => ({
   ts,
@@ -46,5 +56,30 @@ describe('summarize', () => {
     expect(site?.url).toBe('https://a/');
     expect(site?.latest?.performance).toBe(75);
     expect(site?.trend).toEqual([70, 75]);
+  });
+});
+
+describe('saveStore / loadStore', () => {
+  it('round-trips a store and creates the parent directory', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'sitedeck-store-'));
+    try {
+      const file = path.join(dir, 'nested', 'insights.json');
+      const store = appendMeasurement(emptyStore(), 'https://a/', 'A', m('2026-06-13T00:00:00Z', 80), 90);
+      await saveStore(file, store);
+      expect(await loadStore(file)).toEqual(store);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves no temporary file beside the saved store', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'sitedeck-store-'));
+    try {
+      const file = path.join(dir, 'insights.json');
+      await saveStore(file, emptyStore());
+      await expect(readFile(`${file}.tmp`, 'utf8')).rejects.toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -71,5 +71,8 @@ export async function loadStore(filePath: string): Promise<InsightsStore> {
 
 export async function saveStore(filePath: string, store: InsightsStore): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, JSON.stringify(store, null, 2));
+  // Write-then-rename so a crash mid-write can't truncate the existing store.
+  const tmp = `${filePath}.tmp`;
+  await writeFile(tmp, JSON.stringify(store, null, 2));
+  await rename(tmp, filePath);
 }

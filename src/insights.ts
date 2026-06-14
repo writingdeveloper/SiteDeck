@@ -49,7 +49,9 @@ async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<v
 
 async function runMeasurement(): Promise<void> {
   const apiKey = getPsiApiKey();
-  if (!apiKey) return;
+  // Guard here (not only in measureNow) so the scheduler tick can never start a
+  // second run that races with an in-flight one and double-appends measurements.
+  if (!apiKey || measuring) return;
   measuring = true;
   lastErrors = [];
   try {
@@ -89,5 +91,6 @@ export function startInsightsScheduler(): void {
     if (shouldMeasure(store.lastRunAt, Date.now(), INSIGHTS_INTERVAL_MS)) void runMeasurement();
   };
   tick();
-  setInterval(tick, INSIGHTS_INTERVAL_MS);
+  // unref so this daily timer never keeps the process alive on its own.
+  setInterval(tick, INSIGHTS_INTERVAL_MS).unref();
 }

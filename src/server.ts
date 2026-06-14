@@ -115,7 +115,10 @@ function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown
     let data = '';
     req.on('data', (chunk) => {
       data += chunk;
-      if (data.length > 1_000_000) reject(new Error('body too large'));
+      if (data.length > 1_000_000) {
+        req.destroy(); // stop reading instead of buffering an unbounded body
+        reject(new Error('body too large'));
+      }
     });
     req.on('end', () => {
       try {
@@ -142,6 +145,7 @@ async function getVersion(): Promise<VersionInfo> {
   try {
     const res = await fetch('https://api.github.com/repos/writingdeveloper/SiteDeck/releases/latest', {
       headers: { accept: 'application/vnd.github+json' },
+      signal: AbortSignal.timeout(5000), // never hang the request on a slow/offline GitHub
     });
     if (res.ok) {
       const data = (await res.json()) as { tag_name?: string };
@@ -253,7 +257,9 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`SiteDeck → http://localhost:${PORT}`);
-  void initInsights().then(startInsightsScheduler);
+  void initInsights()
+    .then(startInsightsScheduler)
+    .catch((err) => console.error('insights init failed:', err));
   if (!process.env.SITEDECK_NO_OPEN) {
     void open(`http://localhost:${PORT}`);
   }
