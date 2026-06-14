@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLanguage, mergeSettings, LANGUAGES } from './settings';
+import { isLanguage, mergeSettings, LANGUAGES, type Language } from './settings';
 
 describe('isLanguage', () => {
   it('accepts supported languages', () => {
@@ -19,7 +19,9 @@ describe('mergeSettings', () => {
     });
   });
   it('ignores an invalid language', () => {
-    expect(mergeSettings({ language: 'en' }, { language: 'xx' })).toEqual({ language: 'en' });
+    expect(mergeSettings({ language: 'en' }, { language: 'xx' as Language })).toEqual({
+      language: 'en',
+    });
   });
   it('clears the key when given an empty string', () => {
     expect(mergeSettings({ psiApiKey: 'K' }, { psiApiKey: '' })).toEqual({});
