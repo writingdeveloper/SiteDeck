@@ -99,6 +99,16 @@ async function load() {
     const res = await fetch(`/api/summary?period=${period}`);
     const data = await res.json();
 
+    if (data.error) {
+      state.data = null;
+      els.tbody.innerHTML = "";
+      setStatus(
+        `불러오기 오류: ${escapeHtml(data.error)} · <a href="/oauth/start">재연결</a>`,
+        "error",
+      );
+      return;
+    }
+
     if (!data.authenticated) {
       state.data = null;
       els.tbody.innerHTML = "";
@@ -122,7 +132,10 @@ async function load() {
     const errNote = data.errors?.length ? ` · ${data.errors.length}개 속성 오류` : "";
     els.meta.textContent = `${data.sites.length}개 사이트 · 최근 ${data.period}일 · ${when}${errNote}`;
   } catch (err) {
-    setStatus(`불러오기 실패: ${escapeHtml(err?.message ?? String(err))}`, "error");
+    setStatus(
+      `불러오기 실패: ${escapeHtml(err?.message ?? String(err))} · <a href="/oauth/start">재연결</a>`,
+      "error",
+    );
   }
 }
 

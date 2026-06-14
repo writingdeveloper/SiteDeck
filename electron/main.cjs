@@ -38,6 +38,7 @@ function createWindow() {
     width: 1280,
     height: 760,
     title: 'SiteDeck',
+    icon: path.join(ROOT, 'build', 'icon.png'),
     backgroundColor: '#0d1117',
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true },
@@ -61,19 +62,33 @@ function createWindow() {
   win.loadURL(BASE_URL);
 }
 
-app.whenReady().then(() => {
-  startServer();
-  waitForServer(createWindow);
-  // Auto-update from GitHub Releases — packaged builds only (no-op in dev).
-  if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-      console.error('update check failed:', err);
-    });
-  }
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// Single-instance lock: a second launch focuses the existing window instead of
+// starting another server on the same port.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
   });
-});
+
+  app.whenReady().then(() => {
+    startServer();
+    waitForServer(createWindow);
+    // Auto-update from GitHub Releases — packaged builds only (no-op in dev).
+    if (app.isPackaged) {
+      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+        console.error('update check failed:', err);
+      });
+    }
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
