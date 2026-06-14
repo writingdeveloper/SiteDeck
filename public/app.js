@@ -155,3 +155,98 @@ els.headers.forEach((th) =>
 );
 
 load();
+
+const tabs = document.querySelectorAll(".tab");
+const views = {
+  traffic: document.getElementById("view-traffic"),
+  performance: document.getElementById("view-performance"),
+};
+const insights = {
+  status: document.getElementById("insights-status"),
+  table: document.getElementById("insights-table"),
+  tbody: document.querySelector("#insights-table tbody"),
+  meta: document.getElementById("insights-meta"),
+  measure: document.getElementById("measure"),
+};
+let insightsTimer = null;
+
+function scoreCell(v) {
+  if (v === null || v === undefined) return '<span class="score na">—</span>';
+  const cls = v >= 90 ? "good" : v >= 50 ? "avg" : "poor";
+  return `<span class="score ${cls}">${v}</span>`;
+}
+
+function renderInsights(data) {
+  if (!data.configured) {
+    insights.table.hidden = true;
+    insights.tbody.innerHTML = "";
+    insights.status.hidden = false;
+    insights.status.className = "status warn";
+    insights.status.innerHTML =
+      "PageSpeed API 키가 설정되지 않았습니다. <code>~/.sitedeck/config.json</code>의 <code>psiApiKey</code>를 설정하세요.";
+    return;
+  }
+  const sites = data.sites ?? [];
+  insights.table.hidden = sites.length === 0;
+  insights.status.hidden = sites.length > 0 && !data.isMeasuring;
+  if (data.isMeasuring) {
+    insights.status.hidden = false;
+    insights.status.className = "status info";
+    insights.status.textContent = "측정 중…";
+  } else if (sites.length === 0) {
+    insights.status.className = "status info";
+    insights.status.textContent = "아직 측정 결과가 없습니다. '지금 측정'을 눌러 시작하세요.";
+  }
+  insights.tbody.innerHTML = sites
+    .map((s) => {
+      const l = s.latest ?? {};
+      const when = l.ts ? new Date(l.ts).toLocaleString("ko-KR") : "—";
+      return `<tr>
+        <td class="name">${escapeHtml(s.displayName)}</td>
+        <td class="num">${scoreCell(l.performance)}</td>
+        <td class="num">${scoreCell(l.accessibility)}</td>
+        <td class="num">${scoreCell(l.bestPractices)}</td>
+        <td class="num">${scoreCell(l.seo)}</td>
+        <td class="top">${when}</td>
+        <td class="spark-cell">${sparkline(s.trend)}</td>
+      </tr>`;
+    })
+    .join("");
+  const errNote = data.errors?.length ? ` · ${data.errors.length}개 오류` : "";
+  insights.meta.textContent = data.lastRunAt
+    ? `마지막 측정 ${new Date(data.lastRunAt).toLocaleString("ko-KR")}${errNote}`
+    : "";
+}
+
+async function loadInsights() {
+  try {
+    const res = await fetch("/api/insights");
+    const data = await res.json();
+    renderInsights(data);
+    if (data.isMeasuring && !insightsTimer) {
+      insightsTimer = setInterval(loadInsights, 4000);
+    } else if (!data.isMeasuring && insightsTimer) {
+      clearInterval(insightsTimer);
+      insightsTimer = null;
+    }
+  } catch (err) {
+    insights.status.hidden = false;
+    insights.status.className = "status error";
+    insights.status.textContent = `불러오기 실패: ${escapeHtml(err?.message ?? String(err))}`;
+  }
+}
+
+insights.measure.addEventListener("click", async () => {
+  await fetch("/api/insights/measure", { method: "POST" });
+  loadInsights();
+});
+
+tabs.forEach((tab) =>
+  tab.addEventListener("click", () => {
+    tabs.forEach((t) => t.classList.toggle("active", t === tab));
+    const view = tab.dataset.view;
+    views.traffic.hidden = view !== "traffic";
+    views.performance.hidden = view !== "performance";
+    if (view === "performance") loadInsights();
+  }),
+);
