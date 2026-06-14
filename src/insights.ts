@@ -70,6 +70,8 @@ async function runMeasurement(): Promise<void> {
       }
     });
     await saveStore(INSIGHTS_PATH, store);
+  } catch (err) {
+    lastErrors.push({ url: '(run)', message: err instanceof Error ? err.message : String(err) });
   } finally {
     measuring = false;
   }
