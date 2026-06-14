@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "description": "여러 GA4 사이트의 핵심 지표를 한 화면에 요약하는 로컬 대시보드",
   "license": "MIT",
   "author": "Si Hyeong Lee",
@@ -21,6 +22,7 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
+    "electron": "electron .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -33,6 +35,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
+    "electron": "^42.4.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"

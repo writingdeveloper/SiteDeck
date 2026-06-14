@@ -34,10 +34,25 @@ npm start        # http://localhost:4317
 
 처음 실행 시 브라우저에서 Google 로그인 1회 → 토큰은 `~/.sitedeck/token.json`에만 저장됩니다.
 
+## 데스크톱 앱 (Electron)
+
+웹 대신 데스크톱 창으로 실행할 수 있습니다:
+
+```bash
+npm run electron
+```
+
+로컬 서버를 자동으로 띄우고 Electron 창에 대시보드를 로드합니다. Google 로그인은
+보안상 시스템 기본 브라우저에서 진행되며(임베디드 웹뷰 로그인은 Google이 차단),
+인증을 마친 뒤 앱에서 새로고침하면 데이터가 표시됩니다.
+
+> 배포용 패키징(electron-builder 등)은 다음 단계입니다.
+
 ## 스크립트
 
 - `npm start` — 대시보드 서버 실행
 - `npm run dev` — 파일 변경 시 자동 재시작
+- `npm run electron` — 데스크톱(Electron) 창으로 실행
 - `npm test` — 단위 테스트(vitest)
 - `npm run typecheck` — 타입 검사
 
@@ -52,6 +67,7 @@ src/
   ga.ts        Admin 속성 나열 + Data runReport  (예정)
   summary.ts   사이트별 요약 + Δ% 조립           (예정)
 public/        대시보드 프런트(HTML/CSS/JS, 다크 테마)
+electron/      데스크톱 래핑(Electron main 프로세스)
 ```
 
 ## 구현 노트
