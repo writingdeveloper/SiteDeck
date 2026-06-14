@@ -31,9 +31,10 @@
     "start": "tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
     "electron": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "release": "electron-builder --publish always",
+    "build:server": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=dist/server.mjs",
+    "pack": "npm run build:server && electron-builder --dir",
+    "dist": "npm run build:server && electron-builder",
+    "release": "npm run build:server && electron-builder --publish always",
     "icon": "node scripts/make-icon.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -44,15 +45,16 @@
     "@google-analytics/data": "^6.1.0",
     "electron-updater": "^6.8.9",
     "google-auth-library": "^10.7.0",
-    "open": "^11.0.0",
-    "tsx": "^4.22.4"
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
     "electron": "^42.4.0",
     "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
     "png-to-ico": "^3.0.1",
     "pngjs": "^7.0.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   },
@@ -69,6 +71,8 @@
       "!.github/**",
       "!docs/**",
       "!release/**",
+      "!src/**",
+      "!tsconfig.json",
       "!README.*.md",
       "!.gitignore",
       "!SECURITY.md"

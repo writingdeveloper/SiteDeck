@@ -62,10 +62,14 @@ ipcMain.handle('quit-and-install', () => {
 });
 
 function startServer() {
-  // Reuse the existing TypeScript server. ELECTRON_RUN_AS_NODE makes the Electron
-  // binary behave like plain Node, and `--import tsx` runs the .ts entry directly.
+  // ELECTRON_RUN_AS_NODE makes the Electron binary behave like plain Node.
+  // Packaged builds run the prebuilt, dependency-free dist/server.mjs (fast start,
+  // no tsx shipped); dev runs the TS entry through tsx directly.
   // SITEDECK_NO_OPEN stops the server from also launching a system browser.
-  serverProc = spawn(process.execPath, ['--import', 'tsx', path.join(ROOT, 'src', 'server.ts')], {
+  const entry = app.isPackaged
+    ? [path.join(ROOT, 'dist', 'server.mjs')]
+    : ['--import', 'tsx', path.join(ROOT, 'src', 'server.ts')];
+  serverProc = spawn(process.execPath, entry, {
     cwd: ROOT,
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', SITEDECK_NO_OPEN: '1' },
     stdio: 'inherit',
