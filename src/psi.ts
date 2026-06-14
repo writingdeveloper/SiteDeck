@@ -22,3 +22,16 @@ export function parsePsiScores(response: unknown): PsiScores {
     seo: score('seo'),
   };
 }
+
+/** Call PageSpeed Insights v5 (mobile, 4 categories) for a URL and return parsed scores. */
+export async function fetchPsiScores(apiKey: string, url: string): Promise<PsiScores> {
+  const params = new URLSearchParams({ url, strategy: 'mobile', key: apiKey });
+  for (const c of ['PERFORMANCE', 'ACCESSIBILITY', 'BEST_PRACTICES', 'SEO']) {
+    params.append('category', c);
+  }
+  const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params}`);
+  if (!res.ok) {
+    throw new Error(`PSI ${res.status} for ${url}: ${(await res.text()).slice(0, 200)}`);
+  }
+  return parsePsiScores(await res.json());
+}
