@@ -1,93 +1,109 @@
 # SiteDeck
 
-여러 Google Analytics 4(GA4) 사이트의 핵심 지표를, 사이트마다 들어가 보지 않고
-한 화면에서 요약해 보는 **로컬 대시보드**.
+**English** · [한국어](README.ko.md)
 
-- **지표(MVP)**: 활성 사용자(activeUsers), 세션(sessions) + 직전 동일 기간 대비 증감 Δ%(▲▼)
-- **기간**: 7 / 28 / 90일 토글, 정렬 가능한 테이블
-- **인증**: OAuth 2.0 loopback — 내 Google 계정 1회 로그인 → 접근 가능한 모든 GA4 속성 자동 수집
-- **비용**: 0원 (GA API 무료 쿼터 내)
+[![CI](https://github.com/writingdeveloper/SiteDeck/actions/workflows/ci.yml/badge.svg)](https://github.com/writingdeveloper/SiteDeck/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 요구사항
+A local dashboard that summarizes the key metrics of **all your Google Analytics 4 (GA4)
+properties on a single screen** — no more opening each property one by one.
 
-- Node.js ≥ 20 (개발 환경: v22)
+- **Metrics** — active users, sessions, key events (with period-over-period Δ% ▲▼), top page, top channel, and a daily trend sparkline
+- **Periods** — 7 / 28 / 90-day toggle, sortable columns
+- **Auth** — OAuth 2.0 loopback: sign in once with your Google account and every GA4 property you can access is collected automatically
+- **Cost** — free, within the GA API quota
 
-## 설치
+## Requirements
+
+- Node.js ≥ 20 (developed on v22)
+
+## Install
 
 ```bash
 npm install
 ```
 
-## Google Cloud 설정 (1회, ~5분)
+## Google Cloud setup (one-time, ~5 min)
 
-1. [Google Cloud Console](https://console.cloud.google.com)에서 새 프로젝트 생성
-2. **Google Analytics Admin API** + **Google Analytics Data API** 사용 설정
-3. OAuth 동의 화면: External, 테스트 사용자에 본인 계정 추가
-4. 사용자 인증 정보 → OAuth 클라이언트 ID → **데스크톱 앱** → JSON 다운로드
-5. 내려받은 JSON을 프로젝트 루트에 `credentials.json`으로 저장 (git 추적 제외됨 — 형식은 [`credentials.json.example`](credentials.json.example) 참고)
+1. Create a new project in the [Google Cloud Console](https://console.cloud.google.com).
+2. Enable the **Google Analytics Admin API** and **Google Analytics Data API**.
+3. Configure the OAuth consent screen: **External**, and add yourself as a **test user**.
+4. Create credentials → **OAuth client ID** → **Desktop app** → download the JSON.
+5. Save it as `credentials.json` in the project root (git-ignored). See [`credentials.json.example`](credentials.json.example) for the format.
 
-## 실행
+## Run
 
 ```bash
 npm start        # http://localhost:4317
 ```
 
-처음 실행 시 브라우저에서 Google 로그인 1회 → 토큰은 `~/.sitedeck/token.json`에만 저장됩니다.
+On first launch you sign in with Google once; the refresh token is stored only in `~/.sitedeck/token.json`.
 
-## 데스크톱 앱 (Electron)
+## Desktop app (Electron)
 
-웹 대신 데스크톱 창으로 실행할 수 있습니다:
+Run it as a native desktop window instead of in the browser:
 
 ```bash
 npm run electron
 ```
 
-로컬 서버를 자동으로 띄우고 Electron 창에 대시보드를 로드합니다. Google 로그인은
-보안상 시스템 기본 브라우저에서 진행되며(임베디드 웹뷰 로그인은 Google이 차단),
-인증을 마친 뒤 앱에서 새로고침하면 데이터가 표시됩니다.
+Google sign-in opens in your default browser (Google blocks OAuth inside embedded webviews); after authenticating, refresh the app.
 
-> 배포용 패키징(electron-builder 등)은 다음 단계입니다.
+### Building an installer
 
-## 스크립트
+```bash
+npm run dist          # build an installer into release/
+```
 
-- `npm start` — 대시보드 서버 실행
-- `npm run dev` — 파일 변경 시 자동 재시작
-- `npm run electron` — 데스크톱(Electron) 창으로 실행
-- `npm test` — 단위 테스트(vitest)
-- `npm run typecheck` — 타입 검사
+The desktop build **auto-updates** from GitHub Releases (via `electron-updater`). To publish a
+release that installed apps will update to:
 
-## 구조
+```bash
+npm version patch                 # bump the version + create a tag
+GH_TOKEN=<token> npm run release  # build + publish to GitHub Releases
+```
+
+Or push a `v*` tag and let the [release workflow](.github/workflows/release.yml) build and publish it.
+
+> For a packaged/installed app, place `credentials.json` in `~/.sitedeck/` (the project root is only checked when run from source).
+
+## Scripts
+
+| Script | Description |
+| --- | --- |
+| `npm start` | Run the dashboard server |
+| `npm run dev` | Restart on file changes |
+| `npm run electron` | Run as a desktop (Electron) window |
+| `npm run dist` | Package a desktop installer |
+| `npm run release` | Build + publish a release to GitHub |
+| `npm test` | Unit tests (vitest) |
+| `npm run typecheck` | Type checking |
+
+## Project structure
 
 ```
 src/
-  config.ts    상수 · 로컬 파일 경로 · OAuth 범위
-  server.ts    HTTP 서버 (/ 대시보드, /api/summary, OAuth 콜백)
-  periods.ts   기간 → 현재/직전 날짜 범위 계산
-  auth.ts      OAuth loopback + 토큰 캐시        (예정)
-  ga.ts        Admin 속성 나열 + Data runReport  (예정)
-  summary.ts   사이트별 요약 + Δ% 조립           (예정)
-public/        대시보드 프런트(HTML/CSS/JS, 다크 테마)
-electron/      데스크톱 래핑(Electron main 프로세스)
+  config.ts    constants, local paths, OAuth scope
+  server.ts    HTTP server (/ dashboard, /api/summary, OAuth callback)
+  periods.ts   period → current/previous date-range math
+  auth.ts      OAuth loopback + token cache
+  ga.ts        Admin property listing + Data API runReport
+  summary.ts   per-site summary + Δ% assembly
+public/        dashboard front-end (HTML/CSS/JS, dark theme)
+electron/      desktop wrapper (Electron main + auto-updater)
 ```
 
-## 구현 노트
+## How it works
 
-- 기간 비교는 속성당 `runReport`를 **현재·직전 2회 호출하되 두 호출을 병렬 실행**합니다.
-  단일 호출에 2개 date range를 넣는 방식보다 응답 파싱이 단순·견고하고, 병렬 전송이라
-  지연은 1회와 사실상 동일합니다. 여러 속성도 서로 병렬로 수집합니다.
-- 모든 날짜는 **어제까지의 완전한 날**만 집계합니다(부분 집계되는 오늘 제외).
+- For each property, the current and previous periods are fetched with parallel `runReport` calls; properties are collected in parallel too.
+- Only complete days are counted (today, which is partial, is excluded).
+- `credentials.json` and the token (`~/.sitedeck/token.json`) stay on your machine and are never committed.
+- Only the read-only `analytics.readonly` scope is requested.
 
-## 보안
+## Contributing
 
-- OAuth 클라이언트 JSON(`credentials.json`)과 토큰(`~/.sitedeck/token.json`)은
-  로컬에만 저장되며 저장소에 커밋되지 않습니다.
-- GA 범위는 읽기 전용(`analytics.readonly`)만 요청합니다.
+PRs welcome. Please ensure `npm run typecheck` and `npm test` pass. Pure logic is written test-first (TDD).
 
-## 기여
-
-PR 환영합니다. 변경 전 `npm run typecheck`와 `npm test`가 통과하는지 확인해 주세요.
-순수 로직은 TDD(테스트 우선)로 작성합니다.
-
-## 라이선스
+## License
 
 [MIT](LICENSE) © Si Hyeong Lee
