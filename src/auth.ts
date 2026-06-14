@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { OAuth2Client, type Credentials } from 'google-auth-library';
 import { CONFIG_DIR, CREDENTIALS_PATH, GA_SCOPES, REDIRECT_URI, TOKEN_PATH } from './config';
+import { AppError } from './errors';
 
 let client: OAuth2Client | null = null;
 
@@ -10,11 +11,11 @@ async function loadInstalledCredentials(): Promise<{ clientId: string; clientSec
   try {
     raw = JSON.parse(await readFile(CREDENTIALS_PATH, 'utf8'));
   } catch {
-    throw new Error(`OAuth 자격증명을 찾을 수 없습니다: ${CREDENTIALS_PATH}`);
+    throw new AppError('credentials_not_found', CREDENTIALS_PATH);
   }
   const node = raw.installed ?? raw.web ?? raw;
   if (!node.client_id || !node.client_secret) {
-    throw new Error(`credentials.json에 client_id/client_secret이 없습니다: ${CREDENTIALS_PATH}`);
+    throw new AppError('credentials_invalid', CREDENTIALS_PATH);
   }
   return { clientId: node.client_id, clientSecret: node.client_secret };
 }
