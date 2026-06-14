@@ -72,7 +72,9 @@
       "!docs/**",
       "!release/**",
       "!src/**",
+      "!scripts/**",
       "!tsconfig.json",
+      "!vitest.config.ts",
       "!README.*.md",
       "!.gitignore",
       "!SECURITY.md"

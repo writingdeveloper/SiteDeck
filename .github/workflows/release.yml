@@ -23,3 +23,11 @@ jobs:
       - run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # electron-builder occasionally races and publishes a second, blockmap-only
+      # release for the same tag. Fold any stray release's assets back into the
+      # canonical one and delete it. No-op when there's a single release.
+      - name: Consolidate duplicate release
+        shell: bash
+        run: bash scripts/consolidate-release.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
