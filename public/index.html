@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,67 +11,112 @@
       <div class="brand"><span class="logo">▦</span> SiteDeck</div>
       <div class="controls">
         <label
-          >기간
+          ><span data-i18n="controls.period">Period</span>
           <select id="period">
-            <option value="7">7일</option>
-            <option value="28" selected>28일</option>
-            <option value="90">90일</option>
+            <option value="7">7</option>
+            <option value="28" selected>28</option>
+            <option value="90">90</option>
           </select>
         </label>
-        <button id="refresh" type="button">새로고침</button>
+        <button id="refresh" type="button" data-i18n="btn.refresh">Refresh</button>
       </div>
     </header>
 
     <main>
       <nav class="tabs">
-        <button class="tab active" data-view="traffic" type="button">트래픽</button>
-        <button class="tab" data-view="performance" type="button">성능</button>
+        <button class="tab active" data-view="traffic" type="button" data-i18n="tab.traffic">Traffic</button>
+        <button class="tab" data-view="performance" type="button" data-i18n="tab.performance">Performance</button>
+        <button class="tab" data-view="settings" type="button" data-i18n="tab.settings">Settings</button>
       </nav>
 
       <section id="view-traffic">
         <div id="status" class="status" hidden></div>
-
         <table id="table" hidden>
           <thead>
             <tr>
-              <th class="sortable" data-sort="name">사이트</th>
-              <th class="sortable num" data-sort="activeUsers">활성 사용자</th>
-              <th class="sortable num" data-sort="sessions">세션</th>
-              <th class="sortable num" data-sort="keyEvents">핵심 이벤트</th>
-              <th>탑 페이지</th>
-              <th>탑 소스</th>
-              <th>추세</th>
+              <th class="sortable" data-sort="name" data-i18n="col.site">Site</th>
+              <th class="sortable num" data-sort="activeUsers" data-i18n="col.activeUsers">Active users</th>
+              <th class="sortable num" data-sort="sessions" data-i18n="col.sessions">Sessions</th>
+              <th class="sortable num" data-sort="keyEvents" data-i18n="col.keyEvents">Key events</th>
+              <th data-i18n="col.topPage">Top page</th>
+              <th data-i18n="col.topSource">Top channel</th>
+              <th data-i18n="col.trend">Trend</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
-
         <div class="meta" id="meta"></div>
       </section>
 
       <section id="view-performance" hidden>
         <div class="controls">
-          <button id="measure" type="button">지금 측정</button>
+          <button id="measure" type="button" data-i18n="btn.measureNow">Measure now</button>
         </div>
         <div id="insights-status" class="status" hidden></div>
         <table id="insights-table" hidden>
           <thead>
             <tr>
-              <th>사이트</th>
-              <th class="num">성능</th>
-              <th class="num">접근성</th>
-              <th class="num">모범사례</th>
-              <th class="num">SEO</th>
-              <th>측정 시각</th>
-              <th>추세</th>
+              <th data-i18n="col.site">Site</th>
+              <th class="num" data-i18n="col.performance">Performance</th>
+              <th class="num" data-i18n="col.accessibility">Accessibility</th>
+              <th class="num" data-i18n="col.bestPractices">Best Practices</th>
+              <th class="num" data-i18n="col.seo">SEO</th>
+              <th data-i18n="col.measuredAt">Measured</th>
+              <th data-i18n="col.trend">Trend</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
         <div class="meta" id="insights-meta"></div>
       </section>
+
+      <section id="view-settings" hidden>
+        <div class="settings">
+          <label class="field">
+            <span data-i18n="settings.languageLabel">Language</span>
+            <select id="lang-select">
+              <option value="en">English</option>
+              <option value="ko">한국어</option>
+              <option value="es">Español</option>
+              <option value="zh">中文</option>
+              <option value="ja">日本語</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span data-i18n="settings.psiKeyLabel">PageSpeed API key</span>
+            <span class="field-row">
+              <input id="psi-key" type="password" data-i18n-placeholder="settings.psiKeyPlaceholder" />
+              <button id="psi-save" type="button" data-i18n="btn.save">Save</button>
+            </span>
+            <small id="psi-status" class="muted"></small>
+            <small id="cred-status" class="muted"></small>
+          </label>
+
+          <div class="field">
+            <span data-i18n="settings.versionLabel">Version</span>
+            <span class="field-row">
+              <span id="version-current" class="muted"></span>
+              <button id="check-update" type="button" data-i18n="settings.checkUpdate">Check for updates</button>
+            </span>
+            <small id="update-status" class="muted"></small>
+          </div>
+
+          <div class="field">
+            <span data-i18n="settings.aboutLabel">About</span>
+            <small class="muted" data-i18n="settings.description"></small>
+            <span class="field-row">
+              <a href="https://github.com/writingdeveloper/SiteDeck" data-i18n="link.github">GitHub</a>
+              <a href="https://github.com/writingdeveloper/SiteDeck#readme" data-i18n="link.readme">README</a>
+              <a href="https://github.com/writingdeveloper/SiteDeck/blob/main/LICENSE" data-i18n="link.license">License</a>
+              <a href="https://github.com/writingdeveloper/SiteDeck/issues" data-i18n="link.issues">Issues</a>
+            </span>
+          </div>
+        </div>
+        <div id="settings-status" class="status" hidden></div>
+      </section>
     </main>
 
-    <script src="/app.js"></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>
