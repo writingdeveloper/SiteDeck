@@ -66,13 +66,19 @@
     "files": [
       "!**/*.test.ts",
       "!credentials.json*",
-      "!.github/**"
+      "!.github/**",
+      "!docs/**",
+      "!release/**",
+      "!README.*.md",
+      "!.gitignore",
+      "!SECURITY.md"
     ],
     "publish": [
       {
         "provider": "github",
         "owner": "writingdeveloper",
-        "repo": "SiteDeck"
+        "repo": "SiteDeck",
+        "releaseType": "release"
       }
     ],
     "win": {

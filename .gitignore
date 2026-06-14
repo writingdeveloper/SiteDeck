@@ -15,6 +15,10 @@ npm-debug.log*
 credentials.json
 client_secret*.json
 *.secret.json
+# local app state (normally lives in ~/.sitedeck, but never commit if present here)
+token.json
+config.json
+insights.json
 
 # OS
 .DS_Store
