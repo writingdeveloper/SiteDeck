@@ -39,6 +39,24 @@ npm start        # http://localhost:4317
 
 On first launch you sign in with Google once; the refresh token is stored only in `~/.sitedeck/token.json`.
 
+## Performance (PageSpeed)
+
+The **Performance** tab tracks each site's Lighthouse scores (Performance, Accessibility,
+Best Practices, SEO) via the PageSpeed Insights API — measured automatically once a day
+while the app is running, plus a manual **측정** (measure now) button. Scores are stored
+locally in `~/.sitedeck/insights.json`, and the URLs are derived automatically from each
+GA4 property's web data stream.
+
+To enable it, add a PageSpeed Insights API key:
+
+1. In the same GCP project, enable the **PageSpeed Insights API**.
+2. Create an **API key** (APIs & Services → Credentials → Create credentials → API key).
+3. Save it to `~/.sitedeck/config.json`:
+   ```json
+   { "psiApiKey": "YOUR_API_KEY" }
+   ```
+   (or set the `SITEDECK_PSI_KEY` environment variable).
+
 ## Desktop app (Electron)
 
 Run it as a native desktop window instead of in the browser:

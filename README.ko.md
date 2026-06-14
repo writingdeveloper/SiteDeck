@@ -39,6 +39,23 @@ npm start        # http://localhost:4317
 
 첫 실행 시 Google 로그인 1회 → 갱신 토큰은 `~/.sitedeck/token.json`에만 저장됩니다.
 
+## 성능 (PageSpeed)
+
+**성능** 탭은 각 사이트의 라이트하우스 점수(성능·접근성·모범사례·SEO)를 PageSpeed Insights
+API로 추적합니다. 앱 실행 중 하루 1회 자동 측정 + 수동 **측정** 버튼. 점수는
+`~/.sitedeck/insights.json`에 로컬 저장되며, 측정 URL은 각 GA4 속성의 웹 데이터 스트림에서
+자동 추출됩니다.
+
+사용하려면 PageSpeed Insights API 키를 추가하세요:
+
+1. 같은 GCP 프로젝트에서 **PageSpeed Insights API** 사용 설정
+2. **API 키** 생성 (API 및 서비스 → 사용자 인증 정보 → 사용자 인증 정보 만들기 → API 키)
+3. `~/.sitedeck/config.json`에 저장:
+   ```json
+   { "psiApiKey": "YOUR_API_KEY" }
+   ```
+   (또는 `SITEDECK_PSI_KEY` 환경변수 설정)
+
 ## 데스크톱 앱 (Electron)
 
 브라우저 대신 데스크톱 창으로 실행:
