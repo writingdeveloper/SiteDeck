@@ -16,6 +16,14 @@
     "typescript",
     "self-hosted"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/writingdeveloper/SiteDeck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/writingdeveloper/SiteDeck/issues"
+  },
+  "homepage": "https://github.com/writingdeveloper/SiteDeck#readme",
   "engines": {
     "node": ">=20"
   },
@@ -23,6 +31,9 @@
     "start": "tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
     "electron": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "release": "electron-builder --publish always",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -30,14 +41,43 @@
   "dependencies": {
     "@google-analytics/admin": "^9.1.0",
     "@google-analytics/data": "^6.1.0",
+    "electron-updater": "^6.8.9",
     "google-auth-library": "^10.7.0",
-    "open": "^11.0.0"
+    "open": "^11.0.0",
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
     "electron": "^42.4.0",
-    "tsx": "^4.22.4",
+    "electron-builder": "^26.15.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
+  },
+  "build": {
+    "appId": "com.sitedeck.app",
+    "productName": "SiteDeck",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "!**/*.test.ts",
+      "!credentials.json*",
+      "!.github/**"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "writingdeveloper",
+        "repo": "SiteDeck"
+      }
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

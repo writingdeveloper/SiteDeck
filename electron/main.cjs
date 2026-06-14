@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const http = require('node:http');
@@ -63,6 +64,12 @@ function createWindow() {
 app.whenReady().then(() => {
   startServer();
   waitForServer(createWindow);
+  // Auto-update from GitHub Releases — packaged builds only (no-op in dev).
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      console.error('update check failed:', err);
+    });
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
