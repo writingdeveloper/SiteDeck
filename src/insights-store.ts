@@ -1,3 +1,6 @@
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type { PsiScores } from './psi';
 
 export interface Measurement extends PsiScores {
@@ -52,4 +55,21 @@ export function summarize(store: InsightsStore, trendLength: number): InsightsSi
     latest: entry.history[entry.history.length - 1] ?? null,
     trend: entry.history.slice(-trendLength).map((measurement) => measurement.performance ?? 0),
   }));
+}
+
+export async function loadStore(filePath: string): Promise<InsightsStore> {
+  if (!existsSync(filePath)) return emptyStore();
+  try {
+    const parsed = JSON.parse(await readFile(filePath, 'utf8')) as InsightsStore;
+    if (parsed && typeof parsed === 'object' && parsed.byUrl) return parsed;
+    throw new Error('bad shape');
+  } catch {
+    await rename(filePath, `${filePath}.bak`).catch(() => {});
+    return emptyStore();
+  }
+}
+
+export async function saveStore(filePath: string, store: InsightsStore): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(store, null, 2));
 }
