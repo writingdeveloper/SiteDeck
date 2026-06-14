@@ -1,0 +1,50 @@
+import { describe, it, expect } from 'vitest';
+import { emptyStore, appendMeasurement, shouldMeasure, summarize } from './insights-store';
+
+const m = (ts: string, p: number) => ({
+  ts,
+  performance: p,
+  accessibility: 90,
+  bestPractices: 90,
+  seo: 90,
+});
+
+describe('appendMeasurement', () => {
+  it('adds a measurement and sets lastRunAt + displayName', () => {
+    const s = appendMeasurement(emptyStore(), 'https://a/', 'A', m('2026-06-13T00:00:00Z', 80), 90);
+    expect(s.byUrl['https://a/']?.history).toHaveLength(1);
+    expect(s.byUrl['https://a/']?.displayName).toBe('A');
+    expect(s.lastRunAt).toBe('2026-06-13T00:00:00Z');
+  });
+
+  it('trims history to the retention cap, keeping the newest', () => {
+    let s = emptyStore();
+    for (let i = 0; i < 5; i++) {
+      s = appendMeasurement(s, 'https://a/', 'A', m(`2026-06-1${i}T00:00:00Z`, i), 3);
+    }
+    const hist = s.byUrl['https://a/']?.history ?? [];
+    expect(hist.map((x) => x.performance)).toEqual([2, 3, 4]);
+  });
+});
+
+describe('shouldMeasure', () => {
+  const now = Date.parse('2026-06-13T12:00:00Z');
+  const day = 24 * 60 * 60 * 1000;
+  it('is true when never measured', () => expect(shouldMeasure(null, now, day)).toBe(true));
+  it('is false within the interval', () =>
+    expect(shouldMeasure('2026-06-13T06:00:00Z', now, day)).toBe(false));
+  it('is true once the interval elapsed', () =>
+    expect(shouldMeasure('2026-06-12T06:00:00Z', now, day)).toBe(true));
+});
+
+describe('summarize', () => {
+  it('returns latest measurement and performance trend per url', () => {
+    let s = emptyStore();
+    s = appendMeasurement(s, 'https://a/', 'A', m('t1', 70), 90);
+    s = appendMeasurement(s, 'https://a/', 'A', m('t2', 75), 90);
+    const site = summarize(s, 30)[0];
+    expect(site?.url).toBe('https://a/');
+    expect(site?.latest?.performance).toBe(75);
+    expect(site?.trend).toEqual([70, 75]);
+  });
+});
