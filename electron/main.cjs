@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
@@ -9,6 +9,57 @@ const BASE_URL = `http://localhost:${PORT}`;
 const ROOT = path.join(__dirname, '..');
 
 let serverProc = null;
+let mainWindow = null;
+let lastUpdateStatus = null;
+
+// Push an update-lifecycle event to the renderer (and remember the latest so a
+// renderer that subscribes late can still catch up via get-update-status).
+function sendUpdateStatus(payload) {
+  lastUpdateStatus = payload;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', payload);
+  }
+}
+
+// Forward electron-updater events so the Settings tab can show real progress
+// and a "restart to apply" action instead of a silent background download.
+function wireAutoUpdater() {
+  autoUpdater.autoDownload = true;
+  autoUpdater.on('checking-for-update', () => sendUpdateStatus({ status: 'checking' }));
+  autoUpdater.on('update-available', (info) =>
+    sendUpdateStatus({ status: 'available', version: info && info.version }),
+  );
+  autoUpdater.on('update-not-available', () => sendUpdateStatus({ status: 'not-available' }));
+  autoUpdater.on('download-progress', (p) =>
+    sendUpdateStatus({ status: 'progress', percent: (p && p.percent) || 0 }),
+  );
+  autoUpdater.on('update-downloaded', (info) =>
+    sendUpdateStatus({ status: 'downloaded', version: info && info.version }),
+  );
+  autoUpdater.on('error', (err) =>
+    sendUpdateStatus({ status: 'error', message: (err && err.message) || String(err) }),
+  );
+}
+
+ipcMain.handle('check-for-updates', async () => {
+  if (!app.isPackaged) {
+    sendUpdateStatus({ status: 'error', message: 'Updates are only available in the installed app.' });
+    return;
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    sendUpdateStatus({ status: 'error', message: (err && err.message) || String(err) });
+  }
+});
+
+ipcMain.handle('get-update-status', () => lastUpdateStatus);
+
+ipcMain.handle('quit-and-install', () => {
+  if (serverProc) serverProc.kill();
+  // Reply to the renderer before the app tears itself down to install.
+  setImmediate(() => autoUpdater.quitAndInstall());
+});
 
 function startServer() {
   // Reuse the existing TypeScript server. ELECTRON_RUN_AS_NODE makes the Electron
@@ -41,7 +92,14 @@ function createWindow() {
     icon: path.join(ROOT, 'build', 'icon.png'),
     backgroundColor: '#0d1117',
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true },
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+  });
+  mainWindow = win;
+  win.on('closed', () => {
+    mainWindow = null;
   });
 
   // Google blocks OAuth inside embedded webviews, so open the consent flow (and any
@@ -78,9 +136,11 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     startServer();
     waitForServer(createWindow);
-    // Auto-update from GitHub Releases — packaged builds only (no-op in dev).
+    // Auto-update from GitHub Releases. Wire the event forwarding always so the
+    // Settings tab's "Check for updates" works; only auto-check on packaged builds.
+    wireAutoUpdater();
     if (app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      autoUpdater.checkForUpdates().catch((err) => {
         console.error('update check failed:', err);
       });
     }

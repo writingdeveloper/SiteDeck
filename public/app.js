@@ -290,6 +290,7 @@ const settings = {
   credStatus: document.getElementById("cred-status"),
   versionCurrent: document.getElementById("version-current"),
   checkUpdate: document.getElementById("check-update"),
+  updateRestart: document.getElementById("update-restart"),
   updateStatus: document.getElementById("update-status"),
   status: document.getElementById("settings-status"),
 };
@@ -301,6 +302,10 @@ async function loadSettings() {
   settings.credStatus.textContent = s.hasCredentials
     ? t("settings.credentialsFound")
     : t("settings.credentialsMissing");
+  try {
+    const v = await (await fetch("/api/version")).json();
+    settings.versionCurrent.textContent = `v${v.current}`;
+  } catch {}
 }
 
 settings.lang.addEventListener("change", async () => {
@@ -337,7 +342,35 @@ settings.psiSave.addEventListener("click", async () => {
   }
 });
 
-settings.checkUpdate.addEventListener("click", async () => {
+const electronUpdate =
+  typeof window !== "undefined" && window.sitedeck && window.sitedeck.isElectron ? window.sitedeck : null;
+
+function applyUpdateStatus(s) {
+  if (!s) return;
+  switch (s.status) {
+    case "checking":
+      settings.updateStatus.textContent = t("settings.checking");
+      break;
+    case "available":
+      settings.updateStatus.textContent = t("settings.updateAvailable", { version: `v${s.version}` });
+      break;
+    case "not-available":
+      settings.updateStatus.textContent = t("settings.upToDate");
+      break;
+    case "progress":
+      settings.updateStatus.textContent = t("settings.downloading", { percent: Math.round(s.percent) });
+      break;
+    case "downloaded":
+      settings.updateStatus.textContent = t("settings.updateReady", { version: `v${s.version}` });
+      if (settings.updateRestart) settings.updateRestart.hidden = false;
+      break;
+    case "error":
+      settings.updateStatus.textContent = t("settings.updateError", { detail: s.message ?? "" });
+      break;
+  }
+}
+
+async function checkForUpdatesBrowser() {
   try {
     const v = await (await fetch("/api/version")).json();
     settings.versionCurrent.textContent = `v${v.current}`;
@@ -347,7 +380,27 @@ settings.checkUpdate.addEventListener("click", async () => {
   } catch (err) {
     settings.updateStatus.textContent = t("error.unknown", { detail: err?.message ?? String(err) });
   }
-});
+}
+
+if (electronUpdate) {
+  // Installed app: drive the real updater and reflect its progress live.
+  electronUpdate.onUpdateStatus(applyUpdateStatus);
+  electronUpdate.getUpdateStatus().then(applyUpdateStatus).catch(() => {});
+  settings.checkUpdate.addEventListener("click", async () => {
+    settings.updateStatus.textContent = t("settings.checking");
+    try {
+      await electronUpdate.checkForUpdates();
+    } catch (err) {
+      settings.updateStatus.textContent = t("settings.updateError", { detail: err?.message ?? String(err) });
+    }
+  });
+  if (settings.updateRestart) {
+    settings.updateRestart.addEventListener("click", () => electronUpdate.quitAndInstall());
+  }
+} else {
+  // Browser / dev server: fall back to a one-shot version comparison.
+  settings.checkUpdate.addEventListener("click", checkForUpdatesBrowser);
+}
 
 function rerenderAll() {
   document.documentElement.lang = getLocale();
