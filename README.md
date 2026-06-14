@@ -1,6 +1,6 @@
 # SiteDeck
 
-**English** · [한국어](README.ko.md)
+**English** · [한국어](README.ko.md) · [Español](README.es.md) · [中文](README.zh.md) · [日本語](README.ja.md)
 
 [![CI](https://github.com/writingdeveloper/SiteDeck/actions/workflows/ci.yml/badge.svg)](https://github.com/writingdeveloper/SiteDeck/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
