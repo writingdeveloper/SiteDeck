@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 
 /** Local app identifier — also used for the config dir name (~/.sitedeck). */
 export const APP_NAME = 'sitedeck';
@@ -51,13 +51,3 @@ export const INSIGHTS_CONCURRENCY = 2;
 export const INSIGHTS_RETENTION = 90;
 export const INSIGHTS_TREND_LENGTH = 30;
 
-/** PSI API key: env SITEDECK_PSI_KEY, else psiApiKey in ~/.sitedeck/config.json, else null. */
-export function getPsiApiKey(): string | null {
-  if (process.env.SITEDECK_PSI_KEY) return process.env.SITEDECK_PSI_KEY;
-  try {
-    const cfg = JSON.parse(readFileSync(CONFIG_JSON_PATH, 'utf8')) as { psiApiKey?: unknown };
-    return typeof cfg.psiApiKey === 'string' && cfg.psiApiKey ? cfg.psiApiKey : null;
-  } catch {
-    return null;
-  }
-}

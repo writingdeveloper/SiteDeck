@@ -4,8 +4,8 @@ import {
   INSIGHTS_CONCURRENCY,
   INSIGHTS_RETENTION,
   INSIGHTS_TREND_LENGTH,
-  getPsiApiKey,
 } from './config';
+import { getPsiApiKey } from './settings';
 import { getClient } from './auth';
 import { listSiteUrls } from './ga';
 import { fetchPsiScores } from './psi';
