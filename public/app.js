@@ -1,6 +1,8 @@
 // SiteDeck dashboard front-end. Plain JS, no build step.
 // Talks to GET /api/summary?period=7|28|90.
 
+import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
+
 const state = { data: null, sortKey: "activeUsers", sortDir: "desc" };
 
 const els = {
@@ -14,7 +16,7 @@ const els = {
 };
 
 function fmtNum(n) {
-  return typeof n === "number" ? n.toLocaleString("ko-KR") : "—";
+  return typeof n === "number" ? n.toLocaleString() : "—";
 }
 
 function fmtDelta(pct) {
@@ -40,6 +42,13 @@ function escapeHtml(s) {
     /[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
+}
+
+function localizeError(error) {
+  if (!error) return "";
+  const key = `error.${error.code}`;
+  const msg = t(key, { detail: error.detail ?? "" });
+  return msg === key ? t("error.unknown", { detail: error.detail ?? error.code }) : msg;
 }
 
 function setStatus(html, kind) {
@@ -92,7 +101,7 @@ function render() {
 
 async function load() {
   const period = els.period.value;
-  setStatus("불러오는 중…", "info");
+  setStatus(t("status.loading"), "info");
   els.table.hidden = true;
   els.meta.textContent = "";
   try {
@@ -103,7 +112,7 @@ async function load() {
       state.data = null;
       els.tbody.innerHTML = "";
       setStatus(
-        `불러오기 오류: ${escapeHtml(data.error)} · <a href="/oauth/start">재연결</a>`,
+        `${localizeError(data.error)} · <a href="/oauth/start">${t("link.reconnect")}</a>`,
         "error",
       );
       return;
@@ -113,7 +122,7 @@ async function load() {
       state.data = null;
       els.tbody.innerHTML = "";
       setStatus(
-        `Google 계정 연결이 필요합니다. <a href="${data.authUrl}">계정 연결하기</a>`,
+        `${t("status.needAuth")} <a href="${data.authUrl}">${t("link.connectAccount")}</a>`,
         "warn",
       );
       return;
@@ -122,21 +131,26 @@ async function load() {
     state.data = data;
     if (!data.sites || data.sites.length === 0) {
       els.tbody.innerHTML = "";
-      setStatus("접근 가능한 GA4 속성이 없습니다.", "warn");
+      setStatus(t("status.noProperties"), "warn");
       return;
     }
 
     setStatus("", "info");
     render();
-    const when = new Date(data.generatedAt).toLocaleString("ko-KR");
-    const errNote = data.errors?.length ? ` · ${data.errors.length}개 속성 오류` : "";
-    els.meta.textContent = `${data.sites.length}개 사이트 · 최근 ${data.period}일 · ${when}${errNote}`;
+    const when = new Date(data.generatedAt).toLocaleString();
+    els.meta.textContent = `${t("meta.summary", { count: data.sites.length, period: data.period, when })}${data.errors?.length ? t("meta.errorsSuffix", { count: data.errors.length }) : ""}`;
   } catch (err) {
     setStatus(
-      `불러오기 실패: ${escapeHtml(err?.message ?? String(err))} · <a href="/oauth/start">재연결</a>`,
+      `${escapeHtml(err?.message ?? String(err))} · <a href="/oauth/start">${t("link.reconnect")}</a>`,
       "error",
     );
   }
+}
+
+function applyPeriodOptions() {
+  els.period.querySelectorAll("option").forEach((o) => {
+    o.textContent = t("period.option", { n: o.value });
+  });
 }
 
 els.refresh.addEventListener("click", load);
@@ -153,8 +167,6 @@ els.headers.forEach((th) =>
     render();
   }),
 );
-
-load();
 
 const tabs = document.querySelectorAll(".tab");
 const views = {
@@ -182,8 +194,7 @@ function renderInsights(data) {
     insights.tbody.innerHTML = "";
     insights.status.hidden = false;
     insights.status.className = "status warn";
-    insights.status.innerHTML =
-      "PageSpeed API 키가 설정되지 않았습니다. <code>~/.sitedeck/config.json</code>의 <code>psiApiKey</code>를 설정하세요.";
+    insights.status.innerHTML = t("insights.notConfigured");
     return;
   }
   const sites = data.sites ?? [];
@@ -192,15 +203,15 @@ function renderInsights(data) {
   if (data.isMeasuring) {
     insights.status.hidden = false;
     insights.status.className = "status info";
-    insights.status.textContent = "측정 중…";
+    insights.status.textContent = t("insights.measuring");
   } else if (sites.length === 0) {
     insights.status.className = "status info";
-    insights.status.textContent = "아직 측정 결과가 없습니다. '지금 측정'을 눌러 시작하세요.";
+    insights.status.textContent = t("insights.empty");
   }
   insights.tbody.innerHTML = sites
     .map((s) => {
       const l = s.latest ?? {};
-      const when = l.ts ? new Date(l.ts).toLocaleString("ko-KR") : "—";
+      const when = l.ts ? new Date(l.ts).toLocaleString() : "—";
       return `<tr>
         <td class="name">${escapeHtml(s.displayName)}</td>
         <td class="num">${scoreCell(l.performance)}</td>
@@ -212,9 +223,8 @@ function renderInsights(data) {
       </tr>`;
     })
     .join("");
-  const errNote = data.errors?.length ? ` · ${data.errors.length}개 오류` : "";
   insights.meta.textContent = data.lastRunAt
-    ? `마지막 측정 ${new Date(data.lastRunAt).toLocaleString("ko-KR")}${errNote}`
+    ? `${t("insights.lastMeasured", { when: new Date(data.lastRunAt).toLocaleString() })}${data.errors?.length ? t("insights.errorsSuffix", { count: data.errors.length }) : ""}`
     : "";
 }
 
@@ -232,7 +242,7 @@ async function loadInsights() {
   } catch (err) {
     insights.status.hidden = false;
     insights.status.className = "status error";
-    insights.status.textContent = `불러오기 실패: ${escapeHtml(err?.message ?? String(err))}`;
+    insights.status.textContent = `${escapeHtml(err?.message ?? String(err))}`;
   }
 }
 
@@ -241,12 +251,86 @@ insights.measure.addEventListener("click", async () => {
   loadInsights();
 });
 
+const settings = {
+  view: document.getElementById("view-settings"),
+  lang: document.getElementById("lang-select"),
+  psiKey: document.getElementById("psi-key"),
+  psiSave: document.getElementById("psi-save"),
+  psiStatus: document.getElementById("psi-status"),
+  credStatus: document.getElementById("cred-status"),
+  versionCurrent: document.getElementById("version-current"),
+  checkUpdate: document.getElementById("check-update"),
+  updateStatus: document.getElementById("update-status"),
+  status: document.getElementById("settings-status"),
+};
+
+async function loadSettings() {
+  const s = await (await fetch("/api/settings")).json();
+  settings.lang.value = getLocale();
+  settings.psiStatus.textContent = s.hasPsiKey ? t("settings.psiKeySet", { masked: s.psiKeyMasked }) : "";
+  settings.credStatus.textContent = s.hasCredentials
+    ? t("settings.credentialsFound")
+    : t("settings.credentialsMissing");
+}
+
+settings.lang.addEventListener("change", async () => {
+  await setLocale(settings.lang.value);
+  await fetch("/api/settings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ language: settings.lang.value }),
+  });
+  try { localStorage.setItem("sitedeck.locale", settings.lang.value); } catch {}
+  rerenderAll();
+});
+
+settings.psiSave.addEventListener("click", async () => {
+  await fetch("/api/settings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ psiApiKey: settings.psiKey.value }),
+  });
+  settings.psiKey.value = "";
+  settings.status.hidden = false;
+  settings.status.className = "status info";
+  settings.status.textContent = t("settings.saved");
+  loadSettings();
+});
+
+settings.checkUpdate.addEventListener("click", async () => {
+  const v = await (await fetch("/api/version")).json();
+  settings.versionCurrent.textContent = `v${v.current}`;
+  settings.updateStatus.textContent = v.updateAvailable
+    ? t("settings.updateAvailable", { version: `v${v.latest}` })
+    : t("settings.upToDate");
+});
+
+function rerenderAll() {
+  applyI18n();
+  applyPeriodOptions();
+  if (state.data) render();
+  loadSettings();
+  if (!views.performance.hidden) loadInsights();
+}
+
 tabs.forEach((tab) =>
   tab.addEventListener("click", () => {
     tabs.forEach((t) => t.classList.toggle("active", t === tab));
     const view = tab.dataset.view;
     views.traffic.hidden = view !== "traffic";
     views.performance.hidden = view !== "performance";
+    settings.view.hidden = view !== "settings";
     if (view === "performance") loadInsights();
+    if (view === "settings") loadSettings();
   }),
 );
+
+(async () => {
+  let stored = null;
+  try { stored = (await (await fetch("/api/settings")).json()).language; } catch {}
+  if (!stored) { try { stored = localStorage.getItem("sitedeck.locale"); } catch {} }
+  await initI18n(stored);
+  applyI18n();
+  applyPeriodOptions();
+  load();
+})();
