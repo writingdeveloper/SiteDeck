@@ -14,6 +14,7 @@ import { fetchDailySeries, fetchRange, fetchTopValue, listProperties } from './g
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import { listenWithFallback } from './listen';
+import { escapeHtml } from './html';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -21,12 +22,24 @@ const PUBLIC_DIR = path.resolve(__dirname, '../public');
 // The port we actually bound — may differ from PORT if it was already taken.
 let actualPort = PORT;
 
-// Build the OAuth redirect from the host the browser actually reached us on, so
-// auth keeps working even when we fall back to a non-default port (a desktop
-// OAuth client accepts any localhost port).
-function oauthRedirectUri(req: http.IncomingMessage): string {
-  const host = req.headers.host ?? `localhost:${actualPort}`;
-  return `http://${host}${OAUTH_CALLBACK_PATH}`;
+// Build the OAuth redirect from our own bound port — never the client-supplied
+// Host header — so it's always a trusted localhost URL and still works after a
+// port fallback (a desktop OAuth client accepts any localhost port).
+function oauthRedirectUri(): string {
+  return `http://localhost:${actualPort}${OAUTH_CALLBACK_PATH}`;
+}
+
+// Conservative security headers on every response. The frontend loads only its
+// own same-origin module script + styles and talks to GitHub for version checks.
+function securityHeaders(): Record<string, string> {
+  return {
+    'content-security-policy':
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data:; connect-src 'self' https://api.github.com; " +
+      "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+  };
 }
 
 const MIME: Record<string, string> = {
@@ -149,10 +162,19 @@ interface VersionInfo {
   updateAvailable: boolean;
 }
 
+let currentVersion: string | null = null;
+async function getCurrentVersion(): Promise<string> {
+  if (currentVersion === null) {
+    const pkg = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), 'utf8')) as {
+      version: string;
+    };
+    currentVersion = pkg.version;
+  }
+  return currentVersion;
+}
+
 async function getVersion(): Promise<VersionInfo> {
-  const pkg = JSON.parse(await readFile(path.resolve(__dirname, '../package.json'), 'utf8')) as {
-    version: string;
-  };
+  const current = await getCurrentVersion();
   let latest: string | null = null;
   try {
     const res = await fetch('https://api.github.com/repos/writingdeveloper/SiteDeck/releases/latest', {
@@ -166,11 +188,12 @@ async function getVersion(): Promise<VersionInfo> {
   } catch {
     latest = null;
   }
-  return { current: pkg.version, latest, updateAvailable: latest !== null && latest !== pkg.version };
+  return { current, latest, updateAvailable: latest !== null && latest !== current };
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
+  for (const [k, v] of Object.entries(securityHeaders())) res.setHeader(k, v);
+  const url = new URL(req.url ?? '/', `http://localhost:${actualPort}`);
 
   if (url.pathname === '/api/summary') {
     try {
@@ -196,7 +219,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/insights/measure' && req.method === 'POST') {
-    json(res, 200, measureNow());
+    try {
+      json(res, 200, measureNow());
+    } catch (err) {
+      json(res, 500, errorBody(err));
+    }
     return;
   }
 
@@ -230,7 +257,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/oauth/start') {
     try {
       const auth = await getClient();
-      res.writeHead(302, { location: getAuthUrl(auth, oauthRedirectUri(req)) }).end();
+      res.writeHead(302, { location: getAuthUrl(auth, oauthRedirectUri()) }).end();
     } catch (err) {
       res
         .writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
@@ -244,22 +271,25 @@ const server = http.createServer(async (req, res) => {
     const code = url.searchParams.get('code');
     const oauthError = url.searchParams.get('error');
     if (oauthError || !code) {
+      // oauthError comes straight from the callback query string — escape it.
+      const detail = escapeHtml(oauthError ?? tServer(locale, 'oauth.noCode'));
       res
         .writeHead(400, { 'content-type': 'text/html; charset=utf-8' })
-        .end(`<p>${tServer(locale, 'oauth.failed', { detail: oauthError ?? tServer(locale, 'oauth.noCode') })}</p>`);
+        .end(`<p>${tServer(locale, 'oauth.failed', { detail })}</p>`);
       return;
     }
     try {
-      await handleCallback(code, oauthRedirectUri(req));
+      await handleCallback(code, oauthRedirectUri());
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
         `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="1; url=/">` +
           `<body style="font-family:sans-serif;background:#0d1117;color:#e6edf3;padding:40px">` +
           `✅ ${tServer(locale, 'oauth.success')}</body>`,
       );
     } catch (err) {
+      const detail = escapeHtml(err instanceof Error ? err.message : String(err));
       res
         .writeHead(500, { 'content-type': 'text/html; charset=utf-8' })
-        .end(`<p>${tServer(locale, 'oauth.tokenFailed', { detail: err instanceof Error ? err.message : String(err) })}</p>`);
+        .end(`<p>${tServer(locale, 'oauth.tokenFailed', { detail })}</p>`);
     }
     return;
   }

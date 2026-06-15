@@ -1,6 +1,7 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { CONFIG_DIR, CONFIG_JSON_PATH } from './config';
+import { CONFIG_JSON_PATH } from './config';
+import { writeJsonAtomic } from './atomic';
 
 export const LANGUAGES = ['en', 'ko', 'es', 'zh', 'ja'] as const;
 export type Language = (typeof LANGUAGES)[number];
@@ -38,8 +39,7 @@ export async function getSettings(): Promise<Settings> {
 
 export async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
   const next = mergeSettings(await getSettings(), patch);
-  await mkdir(CONFIG_DIR, { recursive: true });
-  await writeFile(CONFIG_JSON_PATH, JSON.stringify(next, null, 2));
+  await writeJsonAtomic(CONFIG_JSON_PATH, next);
   return next;
 }
 

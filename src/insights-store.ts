@@ -1,7 +1,7 @@
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { readFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import type { PsiScores } from './psi';
+import { writeJsonAtomic } from './atomic';
 
 export interface Measurement extends PsiScores {
   ts: string;
@@ -70,9 +70,5 @@ export async function loadStore(filePath: string): Promise<InsightsStore> {
 }
 
 export async function saveStore(filePath: string, store: InsightsStore): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  // Write-then-rename so a crash mid-write can't truncate the existing store.
-  const tmp = `${filePath}.tmp`;
-  await writeFile(tmp, JSON.stringify(store, null, 2));
-  await rename(tmp, filePath);
+  await writeJsonAtomic(filePath, store);
 }

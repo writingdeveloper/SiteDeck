@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { OAuth2Client, type Credentials } from 'google-auth-library';
-import { CONFIG_DIR, CREDENTIALS_PATH, GA_SCOPES, REDIRECT_URI, TOKEN_PATH } from './config';
+import { CONFIG_DIR, CREDENTIALS_PATH, GA_SCOPES, TOKEN_PATH } from './config';
 import { AppError } from './errors';
 
 let client: OAuth2Client | null = null;
@@ -36,7 +36,9 @@ export async function getClient(): Promise<OAuth2Client> {
   if (!building) {
     building = (async () => {
       const { clientId, clientSecret } = await loadInstalledCredentials();
-      const c = new OAuth2Client({ clientId, clientSecret, redirectUri: REDIRECT_URI });
+      // redirect_uri is supplied explicitly per request (getAuthUrl / getToken),
+      // derived from the actually-bound port — so none is set on the client here.
+      const c = new OAuth2Client({ clientId, clientSecret });
       c.on('tokens', (tokens) => {
         void persistTokens(c.credentials, tokens);
       });

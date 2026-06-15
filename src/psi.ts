@@ -29,7 +29,10 @@ export async function fetchPsiScores(apiKey: string, url: string): Promise<PsiSc
   for (const c of ['PERFORMANCE', 'ACCESSIBILITY', 'BEST_PRACTICES', 'SEO']) {
     params.append('category', c);
   }
-  const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params}`);
+  const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params}`, {
+    // Cap the request so a hung PSI call can't hold the measurement lock forever.
+    signal: AbortSignal.timeout(90_000),
+  });
   if (!res.ok) {
     throw new Error(`PSI ${res.status} for ${url}: ${(await res.text()).slice(0, 200)}`);
   }

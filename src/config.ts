@@ -37,11 +37,11 @@ export const PERIODS = [7, 28, 90] as const;
 export type Period = (typeof PERIODS)[number];
 
 /**
- * OAuth loopback callback. A Desktop OAuth client allows redirects to any
- * localhost port/path, so we reuse the dashboard server's port.
+ * OAuth loopback callback path. A Desktop OAuth client allows redirects to any
+ * localhost port, so the full redirect URI is built at request time from the
+ * port the server actually bound (see oauthRedirectUri in server.ts).
  */
 export const OAUTH_CALLBACK_PATH = '/oauth/callback';
-export const REDIRECT_URI = `http://localhost:${PORT}${OAUTH_CALLBACK_PATH}`;
 
 /** PageSpeed Insights / performance-tracking config. */
 export const CONFIG_JSON_PATH = path.join(CONFIG_DIR, 'config.json');
