@@ -77,7 +77,8 @@
       "!vitest.config.ts",
       "!README.*.md",
       "!.gitignore",
-      "!SECURITY.md"
+      "!SECURITY.md",
+      "!CONTRIBUTING.md"
     ],
     "publish": [
       {
