@@ -13,9 +13,21 @@ import { comparisonRanges } from './periods';
 import { fetchDailySeries, fetchRange, fetchTopValue, listProperties } from './ga';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
+import { listenWithFallback } from './listen';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
+
+// The port we actually bound — may differ from PORT if it was already taken.
+let actualPort = PORT;
+
+// Build the OAuth redirect from the host the browser actually reached us on, so
+// auth keeps working even when we fall back to a non-default port (a desktop
+// OAuth client accepts any localhost port).
+function oauthRedirectUri(req: http.IncomingMessage): string {
+  const host = req.headers.host ?? `localhost:${actualPort}`;
+  return `http://${host}${OAUTH_CALLBACK_PATH}`;
+}
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -218,7 +230,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/oauth/start') {
     try {
       const auth = await getClient();
-      res.writeHead(302, { location: getAuthUrl(auth) }).end();
+      res.writeHead(302, { location: getAuthUrl(auth, oauthRedirectUri(req)) }).end();
     } catch (err) {
       res
         .writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
@@ -238,7 +250,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     try {
-      await handleCallback(code);
+      await handleCallback(code, oauthRedirectUri(req));
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
         `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="1; url=/">` +
           `<body style="font-family:sans-serif;background:#0d1117;color:#e6edf3;padding:40px">` +
@@ -255,12 +267,20 @@ const server = http.createServer(async (req, res) => {
   await serveStatic(res, url.pathname);
 });
 
-server.listen(PORT, () => {
-  console.log(`SiteDeck → http://localhost:${PORT}`);
-  void initInsights()
-    .then(startInsightsScheduler)
-    .catch((err) => console.error('insights init failed:', err));
-  if (!process.env.SITEDECK_NO_OPEN) {
-    void open(`http://localhost:${PORT}`);
-  }
-});
+listenWithFallback(server, PORT, 10)
+  .then((port) => {
+    actualPort = port;
+    console.log(`SiteDeck → http://localhost:${port}`);
+    // Machine-readable line so the Electron main process learns the real port.
+    console.log(`SITEDECK_LISTENING ${port}`);
+    void initInsights()
+      .then(startInsightsScheduler)
+      .catch((err) => console.error('insights init failed:', err));
+    if (!process.env.SITEDECK_NO_OPEN) {
+      void open(`http://localhost:${port}`);
+    }
+  })
+  .catch((err: Error) => {
+    console.error(`SiteDeck: could not bind a port starting at ${PORT}: ${err.message}`);
+    process.exit(1);
+  });

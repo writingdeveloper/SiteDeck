@@ -5,11 +5,12 @@ const path = require('node:path');
 const http = require('node:http');
 
 const PORT = Number(process.env.PORT ?? 4317);
-const BASE_URL = `http://localhost:${PORT}`;
 const ROOT = path.join(__dirname, '..');
 
 let serverProc = null;
 let mainWindow = null;
+let serverPort = null; // the port the server actually bound (announced on its stdout)
+let windowOpened = false; // becomes true once a real or error window is shown
 let lastUpdateStatus = null;
 
 // Push an update-lifecycle event to the renderer (and remember the latest so a
@@ -72,23 +73,74 @@ function startServer() {
   serverProc = spawn(process.execPath, entry, {
     cwd: ROOT,
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', SITEDECK_NO_OPEN: '1' },
-    stdio: 'inherit',
+    // Pipe stdout so we can learn the real port; the server may fall back from
+    // PORT if it's already taken. stderr is inherited so errors stay visible.
+    stdio: ['ignore', 'pipe', 'inherit'],
   });
-  serverProc.on('error', (err) => console.error('SiteDeck server failed to start:', err));
+
+  let buf = '';
+  serverProc.stdout.on('data', (chunk) => {
+    const text = chunk.toString();
+    process.stdout.write(text); // keep the server's log visible
+    if (serverPort !== null) return;
+    buf += text;
+    const m = buf.match(/SITEDECK_LISTENING (\d+)/);
+    if (m) {
+      serverPort = Number(m[1]);
+      onServerListening();
+    }
+  });
+
+  serverProc.on('error', (err) => {
+    console.error('SiteDeck server failed to start:', err);
+    showServerError(`The local server could not be started: ${err.message}`);
+  });
+  serverProc.on('exit', (code, signal) => {
+    if (!windowOpened) {
+      showServerError(
+        `The local server exited before it was ready (code ${code}${signal ? `, ${signal}` : ''}).`,
+      );
+    }
+  });
+
+  // Backstop: if the server neither announces a port nor exits, don't hang on a
+  // blank window forever.
+  setTimeout(() => {
+    if (!windowOpened && serverPort === null) {
+      showServerError('The local server did not start in time.');
+    }
+  }, 30000);
 }
 
-function waitForServer(onReady, tries = 0) {
-  const req = http.get(BASE_URL, (res) => {
+function onServerListening() {
+  const base = `http://localhost:${serverPort}`;
+  waitForServer(
+    base,
+    () => createWindow(base),
+    () => showServerError('The local server started but did not respond in time.'),
+  );
+}
+
+function waitForServer(base, onReady, onFail, tries = 0) {
+  const req = http.get(base, (res) => {
     res.resume();
     onReady();
   });
   req.on('error', () => {
-    if (tries < 75) setTimeout(() => waitForServer(onReady, tries + 1), 200);
-    else onReady(); // give up waiting and load anyway
+    if (tries < 75) setTimeout(() => waitForServer(base, onReady, onFail, tries + 1), 200);
+    else onFail();
   });
 }
 
-function createWindow() {
+// Startup path: show the main window exactly once (the windowOpened guard also
+// blocks a late error window from racing in after the page already loaded).
+function createWindow(base) {
+  if (windowOpened) return;
+  windowOpened = true;
+  buildMainWindow(base);
+}
+
+function buildMainWindow(base) {
   const win = new BrowserWindow({
     width: 1280,
     height: 760,
@@ -115,13 +167,39 @@ function createWindow() {
   });
   win.webContents.on('will-navigate', (event, url) => {
     const target = new URL(url);
-    if (target.host !== `localhost:${PORT}` || target.pathname.startsWith('/oauth')) {
+    if (target.host !== `localhost:${serverPort}` || target.pathname.startsWith('/oauth')) {
       event.preventDefault();
       shell.openExternal(url);
     }
   });
 
-  win.loadURL(BASE_URL);
+  win.loadURL(base || `http://localhost:${serverPort}`);
+}
+
+// Replace the silent black screen with a readable error when the server can't start.
+function showServerError(message) {
+  if (windowOpened) return;
+  windowOpened = true;
+  const win = new BrowserWindow({
+    width: 760,
+    height: 460,
+    title: 'SiteDeck',
+    backgroundColor: '#0d1117',
+    autoHideMenuBar: true,
+  });
+  mainWindow = win;
+  win.on('closed', () => {
+    mainWindow = null;
+  });
+  const html =
+    `<!doctype html><meta charset="utf-8">` +
+    `<body style="font-family:Segoe UI,system-ui,sans-serif;background:#0d1117;color:#e6edf3;padding:48px;line-height:1.6">` +
+    `<h2 style="color:#f85149;margin:0 0 12px">SiteDeck couldn't start</h2>` +
+    `<p>${message}</p>` +
+    `<p style="color:#8b949e">The local port may be in use by another app — for example another SiteDeck window, ` +
+    `or Google Drive, which uses nearby ports. Close other instances and reopen SiteDeck.</p>` +
+    `</body>`;
+  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 }
 
 // Single-instance lock: a second launch focuses the existing window instead of
@@ -138,8 +216,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    // startServer() reads the server's announced port from stdout and then opens
+    // the window (or an error window if the server can't start).
     startServer();
-    waitForServer(createWindow);
     // Auto-update from GitHub Releases. Wire the event forwarding always so the
     // Settings tab's "Check for updates" works; only auto-check on packaged builds.
     wireAutoUpdater();
@@ -149,7 +228,9 @@ if (!app.requestSingleInstanceLock()) {
       });
     }
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      if (serverPort !== null && BrowserWindow.getAllWindows().length === 0) {
+        buildMainWindow(`http://localhost:${serverPort}`);
+      }
     });
   });
 }

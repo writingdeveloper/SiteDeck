@@ -64,13 +64,18 @@ export async function isAuthenticated(): Promise<boolean> {
   return Boolean(c.credentials?.refresh_token);
 }
 
-export function getAuthUrl(c: OAuth2Client): string {
-  return c.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: GA_SCOPES });
+export function getAuthUrl(c: OAuth2Client, redirectUri: string): string {
+  return c.generateAuthUrl({
+    redirect_uri: redirectUri,
+    access_type: 'offline',
+    prompt: 'consent',
+    scope: GA_SCOPES,
+  });
 }
 
-export async function handleCallback(code: string): Promise<void> {
+export async function handleCallback(code: string, redirectUri: string): Promise<void> {
   const c = await getClient();
-  const { tokens } = await c.getToken(code);
+  const { tokens } = await c.getToken({ code, redirect_uri: redirectUri });
   c.setCredentials(tokens);
   await persistTokens(c.credentials, tokens);
 }
