@@ -30,17 +30,24 @@ function fmtDelta(pct) {
     return '<span class="delta flat">—</span>';
   }
   const up = pct >= 0;
-  return `<span class="delta ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%</span>`;
+  const n = Math.abs(pct).toLocaleString(getLocale(), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  return `<span class="delta ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${n}%</span>`;
 }
 
-function sparkline(values, w = 84, h = 24) {
+function sparkline(values, label = "", w = 84, h = 24) {
   if (!values || values.length === 0) return "";
   const max = Math.max(...values, 1);
   const stepX = values.length > 1 ? w / (values.length - 1) : 0;
   const pts = values
     .map((v, i) => `${(i * stepX).toFixed(1)},${(h - 1 - (v / max) * (h - 2)).toFixed(1)}`)
     .join(" ");
-  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>`;
+  // Labelled when a description is given (screen readers announce it), otherwise
+  // marked decorative so it isn't announced as a meaningless "image".
+  const a11y = label ? ` role="img" aria-label="${escapeHtml(label)}"` : ' aria-hidden="true"';
+  return `<svg class="spark"${a11y} width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>`;
 }
 
 function escapeHtml(s) {
@@ -62,6 +69,8 @@ function localizeError(error) {
 
 function setStatus(html, kind) {
   els.status.className = `status ${kind ?? "info"}`;
+  // Errors interrupt; everything else is announced politely.
+  els.status.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
   els.status.innerHTML = html;
   els.status.hidden = !html;
 }
@@ -107,7 +116,7 @@ function render() {
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
         <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
         <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
-        <td class="spark-cell">${sparkline(s.trend)}</td>
+        <td class="spark-cell">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
       </tr>`,
     )
     .join("");
@@ -121,7 +130,8 @@ async function load() {
   els.meta.textContent = "";
   try {
     const res = await fetch(`/api/summary?period=${period}`);
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
+    if (!data) throw new Error(`HTTP ${res.status}`);
 
     if (data.error) {
       state.data = null;
@@ -212,6 +222,9 @@ function scoreCell(v) {
 }
 
 function renderInsights(data) {
+  insights.measure.disabled = Boolean(data.isMeasuring);
+  if (data.isMeasuring) insights.measure.setAttribute("aria-busy", "true");
+  else insights.measure.removeAttribute("aria-busy");
   if (!data.configured) {
     insights.table.hidden = true;
     insights.tbody.innerHTML = "";
@@ -242,7 +255,7 @@ function renderInsights(data) {
         <td class="num">${scoreCell(l.bestPractices)}</td>
         <td class="num">${scoreCell(l.seo)}</td>
         <td class="top">${when}</td>
-        <td class="spark-cell">${sparkline(s.trend)}</td>
+        <td class="spark-cell">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
       </tr>`;
     })
     .join("");
@@ -251,16 +264,28 @@ function renderInsights(data) {
     : "";
 }
 
+function stopInsightsPolling() {
+  if (insightsTimer) {
+    clearInterval(insightsTimer);
+    insightsTimer = null;
+  }
+}
+
 async function loadInsights() {
+  // Show a loading hint only on first open (no rows yet) — not on every 4s poll.
+  if (!insights.tbody.children.length && insights.status.hidden) {
+    insights.status.hidden = false;
+    insights.status.className = "status info";
+    insights.status.textContent = t("status.loading");
+  }
   try {
     const res = await fetch("/api/insights");
     const data = await res.json();
     renderInsights(data);
     if (data.isMeasuring && !insightsTimer) {
       insightsTimer = setInterval(loadInsights, 4000);
-    } else if (!data.isMeasuring && insightsTimer) {
-      clearInterval(insightsTimer);
-      insightsTimer = null;
+    } else if (!data.isMeasuring) {
+      stopInsightsPolling();
     }
   } catch (err) {
     insights.status.hidden = false;
@@ -270,6 +295,8 @@ async function loadInsights() {
 }
 
 insights.measure.addEventListener("click", async () => {
+  insights.measure.disabled = true;
+  insights.measure.setAttribute("aria-busy", "true");
   try {
     const res = await fetch("/api/insights/measure", { method: "POST" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -278,6 +305,8 @@ insights.measure.addEventListener("click", async () => {
     insights.status.hidden = false;
     insights.status.className = "status error";
     insights.status.textContent = err?.message ?? String(err);
+    insights.measure.disabled = false;
+    insights.measure.removeAttribute("aria-busy");
   }
 });
 
@@ -413,12 +442,17 @@ function rerenderAll() {
 
 tabs.forEach((tab) =>
   tab.addEventListener("click", () => {
-    tabs.forEach((t) => t.classList.toggle("active", t === tab));
+    tabs.forEach((b) => {
+      const active = b === tab;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", active ? "true" : "false");
+    });
     const view = tab.dataset.view;
     views.traffic.hidden = view !== "traffic";
     views.performance.hidden = view !== "performance";
     settings.view.hidden = view !== "settings";
     if (view === "performance") loadInsights();
+    else stopInsightsPolling(); // don't keep polling a hidden tab
     if (view === "settings") loadSettings();
   }),
 );

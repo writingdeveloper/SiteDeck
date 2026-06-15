@@ -23,14 +23,14 @@
     </header>
 
     <main>
-      <nav class="tabs">
-        <button class="tab active" data-view="traffic" type="button" data-i18n="tab.traffic">Traffic</button>
-        <button class="tab" data-view="performance" type="button" data-i18n="tab.performance">Performance</button>
-        <button class="tab" data-view="settings" type="button" data-i18n="tab.settings">Settings</button>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" id="tab-traffic" role="tab" aria-selected="true" aria-controls="view-traffic" data-view="traffic" type="button" data-i18n="tab.traffic">Traffic</button>
+        <button class="tab" id="tab-performance" role="tab" aria-selected="false" aria-controls="view-performance" data-view="performance" type="button" data-i18n="tab.performance">Performance</button>
+        <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="view-settings" data-view="settings" type="button" data-i18n="tab.settings">Settings</button>
       </nav>
 
-      <section id="view-traffic">
-        <div id="status" class="status" hidden></div>
+      <section id="view-traffic" role="tabpanel" aria-labelledby="tab-traffic">
+        <div id="status" class="status" role="status" aria-live="polite" hidden></div>
         <table id="table" hidden>
           <thead>
             <tr>
@@ -48,11 +48,11 @@
         <div class="meta" id="meta"></div>
       </section>
 
-      <section id="view-performance" hidden>
+      <section id="view-performance" role="tabpanel" aria-labelledby="tab-performance" hidden>
         <div class="controls">
           <button id="measure" type="button" data-i18n="btn.measureNow">Measure now</button>
         </div>
-        <div id="insights-status" class="status" hidden></div>
+        <div id="insights-status" class="status" role="status" aria-live="polite" hidden></div>
         <table id="insights-table" hidden>
           <thead>
             <tr>
@@ -70,7 +70,7 @@
         <div class="meta" id="insights-meta"></div>
       </section>
 
-      <section id="view-settings" hidden>
+      <section id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
         <div class="settings">
           <label class="field">
             <span data-i18n="settings.languageLabel">Language</span>
@@ -118,7 +118,7 @@
             </span>
           </div>
         </div>
-        <div id="settings-status" class="status" hidden></div>
+        <div id="settings-status" class="status" role="status" aria-live="polite" hidden></div>
       </section>
     </main>
 
