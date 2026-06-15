@@ -12,6 +12,17 @@ let mainWindow = null;
 let serverPort = null; // the port the server actually bound (announced on its stdout)
 let windowOpened = false; // becomes true once a real or error window is shown
 let lastUpdateStatus = null;
+let updateDownloaded = false; // gate quit-and-install until an update is actually ready
+
+// Only hand http(s) URLs to the OS — never file://, custom protocols, or similar.
+function openExternalSafely(url) {
+  try {
+    const { protocol } = new URL(url);
+    if (protocol === 'http:' || protocol === 'https:') shell.openExternal(url);
+  } catch {
+    /* ignore malformed URLs */
+  }
+}
 
 // Push an update-lifecycle event to the renderer (and remember the latest so a
 // renderer that subscribes late can still catch up via get-update-status).
@@ -34,9 +45,10 @@ function wireAutoUpdater() {
   autoUpdater.on('download-progress', (p) =>
     sendUpdateStatus({ status: 'progress', percent: (p && p.percent) || 0 }),
   );
-  autoUpdater.on('update-downloaded', (info) =>
-    sendUpdateStatus({ status: 'downloaded', version: info && info.version }),
-  );
+  autoUpdater.on('update-downloaded', (info) => {
+    updateDownloaded = true;
+    sendUpdateStatus({ status: 'downloaded', version: info && info.version });
+  });
   autoUpdater.on('error', (err) =>
     sendUpdateStatus({ status: 'error', message: (err && err.message) || String(err) }),
   );
@@ -57,6 +69,7 @@ ipcMain.handle('check-for-updates', async () => {
 ipcMain.handle('get-update-status', () => lastUpdateStatus);
 
 ipcMain.handle('quit-and-install', () => {
+  if (!updateDownloaded) return; // nothing downloaded yet — ignore stray calls
   if (serverProc) serverProc.kill();
   // Reply to the renderer before the app tears itself down to install.
   setImmediate(() => autoUpdater.quitAndInstall());
@@ -162,14 +175,14 @@ function buildMainWindow(base) {
   // external link) in the user's default browser. The loopback callback still hits
   // our local server, so the token is cached exactly as in the web flow.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafely(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => {
     const target = new URL(url);
     if (target.host !== `localhost:${serverPort}` || target.pathname.startsWith('/oauth')) {
       event.preventDefault();
-      shell.openExternal(url);
+      openExternalSafely(url);
     }
   });
 
