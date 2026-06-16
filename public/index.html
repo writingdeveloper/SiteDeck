@@ -10,6 +10,7 @@
     <header class="topbar">
       <div class="brand"><span class="logo">▦</span> SiteDeck</div>
       <div class="controls">
+        <input id="search" type="search" class="search" data-i18n-placeholder="controls.searchPlaceholder" data-i18n-aria-label="controls.searchPlaceholder" />
         <label
           ><span data-i18n="controls.period">Period</span>
           <select id="period">
@@ -18,7 +19,9 @@
             <option value="90">90</option>
           </select>
         </label>
+        <label class="toggle"><input id="autorefresh" type="checkbox" /> <span data-i18n="controls.autoRefresh">Auto</span></label>
         <button id="refresh" type="button" data-i18n="btn.refresh">Refresh</button>
+        <button id="export" type="button" data-i18n="btn.export">Export CSV</button>
       </div>
     </header>
 

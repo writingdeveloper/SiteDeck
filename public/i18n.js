@@ -49,6 +49,9 @@ export function applyI18n(root = document) {
   root.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     el.setAttribute("placeholder", t(el.getAttribute("data-i18n-placeholder")));
   });
+  root.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
+    el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria-label")));
+  });
 }
 
 export { LANGUAGES };

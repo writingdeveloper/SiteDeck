@@ -29,7 +29,7 @@ npm install
 2. Enable the **Google Analytics Admin API** and **Google Analytics Data API**.
 3. Configure the OAuth consent screen: **External**, and add yourself as a **test user**.
 4. Create credentials → **OAuth client ID** → **Desktop app** → download the JSON.
-5. Save it as `credentials.json` in the project root (git-ignored). See [`credentials.json.example`](credentials.json.example) for the format.
+5. Save it as `credentials.json` in **`~/.sitedeck/`** (create the folder if it doesn't exist; git-ignored). See [`credentials.json.example`](credentials.json.example) for the format. _(When running from source, a `credentials.json` in the project root is also picked up.)_
 
 ## Run
 

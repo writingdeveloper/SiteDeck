@@ -2,12 +2,22 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
+import { toCsv, matchesFilter, relTime } from "/format.js";
 
-const state = { data: null, sortKey: "activeUsers", sortDir: "desc" };
+// Tiny localStorage wrapper (private mode / disabled storage degrades gracefully).
+const store = {
+  get: (k) => { try { return localStorage.getItem("sitedeck." + k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem("sitedeck." + k, v); } catch {} },
+};
+
+const state = { data: null, insights: null, filter: "", sortKey: "activeUsers", sortDir: "desc" };
 
 const els = {
   period: document.getElementById("period"),
+  search: document.getElementById("search"),
+  autorefresh: document.getElementById("autorefresh"),
   refresh: document.getElementById("refresh"),
+  export: document.getElementById("export"),
   status: document.getElementById("status"),
   table: document.getElementById("table"),
   tbody: document.querySelector("#table tbody"),
@@ -57,6 +67,24 @@ function escapeHtml(s) {
   );
 }
 
+function gaUrl(propertyId) {
+  return propertyId ? `https://analytics.google.com/analytics/web/#/p${encodeURIComponent(propertyId)}` : null;
+}
+
+// Site name, linked to an external target (GA4 property, or the site URL) when one
+// is known. Opens in the browser; in Electron the will-navigate handler externalizes it.
+function siteLink(name, href) {
+  const safe = escapeHtml(name);
+  return href
+    ? `<a class="site-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${safe}</a>`
+    : safe;
+}
+
+function trendTip(values) {
+  if (!values || !values.length) return "";
+  return `● ${values[values.length - 1]}   ↑ ${Math.max(...values)}   ↓ ${Math.min(...values)}`;
+}
+
 function localizeError(error) {
   if (!error) return "";
   // detail is interpolated into innerHTML (status messages keep an <a> link),
@@ -76,7 +104,7 @@ function setStatus(html, kind) {
 }
 
 function sortedSites() {
-  const sites = [...(state.data?.sites ?? [])];
+  const sites = (state.data?.sites ?? []).filter((s) => matchesFilter(s.displayName, state.filter));
   const dir = state.sortDir === "asc" ? 1 : -1;
   sites.sort((a, b) => {
     if (state.sortKey === "name") {
@@ -110,17 +138,17 @@ function render() {
     .map(
       (s) => `
       <tr>
-        <td class="name">${escapeHtml(s.displayName)}</td>
+        <td class="name">${siteLink(s.displayName, gaUrl(s.propertyId))}</td>
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
         <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
         <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
-        <td class="spark-cell">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
+        <td class="spark-cell" title="${escapeHtml(trendTip(s.trend))}">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
       </tr>`,
     )
     .join("");
-  els.table.hidden = sites.length === 0;
+  els.table.hidden = (state.data?.sites?.length ?? 0) === 0;
 }
 
 async function load() {
@@ -162,8 +190,7 @@ async function load() {
 
     setStatus("", "info");
     render();
-    const when = fmtWhen(data.generatedAt);
-    els.meta.textContent = `${t("meta.summary", { count: data.sites.length, period: data.period, when })}${data.errors?.length ? t("meta.errorsSuffix", { count: data.errors.length }) : ""}`;
+    renderMeta();
   } catch (err) {
     setStatus(
       `${escapeHtml(err?.message ?? String(err))} · <a href="/oauth/start">${t("link.reconnect")}</a>`,
@@ -178,6 +205,21 @@ function applyPeriodOptions() {
   });
 }
 
+// Meta line with a live "updated x ago" (absolute time on hover). Re-run on a timer.
+function renderMeta() {
+  if (!state.data) {
+    els.meta.textContent = "";
+    els.meta.removeAttribute("title");
+    return;
+  }
+  const d = state.data;
+  const when = relTime(new Date(d.generatedAt).getTime(), Date.now(), getLocale(), t("meta.justNow"));
+  els.meta.title = fmtWhen(d.generatedAt);
+  els.meta.textContent = `${t("meta.summary", { count: d.sites.length, period: d.period, when })}${
+    d.errors?.length ? t("meta.errorsSuffix", { count: d.errors.length }) : ""
+  }`;
+}
+
 function toggleSort(th) {
   const key = th.dataset.sort;
   if (state.sortKey === key) {
@@ -187,10 +229,15 @@ function toggleSort(th) {
     state.sortDir = key === "name" ? "asc" : "desc";
   }
   render();
+  store.set("sortKey", state.sortKey);
+  store.set("sortDir", state.sortDir);
 }
 
 els.refresh.addEventListener("click", load);
-els.period.addEventListener("change", load);
+els.period.addEventListener("change", () => {
+  store.set("period", els.period.value);
+  load();
+});
 els.headers.forEach((th) => {
   th.addEventListener("click", () => toggleSort(th));
   th.addEventListener("keydown", (e) => {
@@ -245,17 +292,18 @@ function renderInsights(data) {
     insights.status.textContent = t("insights.empty");
   }
   insights.tbody.innerHTML = sites
+    .filter((s) => matchesFilter(s.displayName, state.filter))
     .map((s) => {
       const l = s.latest ?? {};
       const when = fmtWhen(l.ts);
       return `<tr>
-        <td class="name">${escapeHtml(s.displayName)}</td>
+        <td class="name">${siteLink(s.displayName, s.url || null)}</td>
         <td class="num">${scoreCell(l.performance)}</td>
         <td class="num">${scoreCell(l.accessibility)}</td>
         <td class="num">${scoreCell(l.bestPractices)}</td>
         <td class="num">${scoreCell(l.seo)}</td>
         <td class="top">${when}</td>
-        <td class="spark-cell">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
+        <td class="spark-cell" title="${escapeHtml(trendTip(s.trend))}">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
       </tr>`;
     })
     .join("");
@@ -281,6 +329,7 @@ async function loadInsights() {
   try {
     const res = await fetch("/api/insights");
     const data = await res.json();
+    state.insights = data;
     renderInsights(data);
     if (data.isMeasuring && !insightsTimer) {
       insightsTimer = setInterval(loadInsights, 4000);
@@ -435,27 +484,98 @@ function rerenderAll() {
   document.documentElement.lang = getLocale();
   applyI18n();
   applyPeriodOptions();
-  if (state.data) render();
+  if (state.data) {
+    render();
+    renderMeta();
+  }
   loadSettings();
   if (!views.performance.hidden) loadInsights();
 }
 
+function activateTab(view) {
+  tabs.forEach((b) => {
+    const active = b.dataset.view === view;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  views.traffic.hidden = view !== "traffic";
+  views.performance.hidden = view !== "performance";
+  settings.view.hidden = view !== "settings";
+  if (view === "performance") loadInsights();
+  else stopInsightsPolling(); // don't keep polling a hidden tab
+  if (view === "settings") loadSettings();
+}
+
 tabs.forEach((tab) =>
   tab.addEventListener("click", () => {
-    tabs.forEach((b) => {
-      const active = b === tab;
-      b.classList.toggle("active", active);
-      b.setAttribute("aria-selected", active ? "true" : "false");
-    });
-    const view = tab.dataset.view;
-    views.traffic.hidden = view !== "traffic";
-    views.performance.hidden = view !== "performance";
-    settings.view.hidden = view !== "settings";
-    if (view === "performance") loadInsights();
-    else stopInsightsPolling(); // don't keep polling a hidden tab
-    if (view === "settings") loadSettings();
+    activateTab(tab.dataset.view);
+    store.set("tab", tab.dataset.view);
   }),
 );
+
+// --- Search / filter (live, applies to whichever table is visible) ---
+els.search.addEventListener("input", () => {
+  state.filter = els.search.value;
+  if (!views.traffic.hidden && state.data) render();
+  if (!views.performance.hidden && state.insights) renderInsights(state.insights);
+});
+
+// --- CSV export of the current view ---
+function downloadCsv(filename, csv) {
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }); // BOM → Excel
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+els.export.addEventListener("click", () => {
+  if (!views.traffic.hidden && state.data) {
+    const headers = [t("col.site"), t("col.activeUsers"), "Δ%", t("col.sessions"), "Δ%", t("col.keyEvents"), "Δ%", t("col.topPage"), t("col.topSource")];
+    const rows = sortedSites().map((s) => [
+      s.displayName,
+      s.activeUsers?.current ?? "", s.activeUsers?.deltaPct ?? "",
+      s.sessions?.current ?? "", s.sessions?.deltaPct ?? "",
+      s.keyEvents?.current ?? "", s.keyEvents?.deltaPct ?? "",
+      s.topPage ?? "", s.topSource ?? "",
+    ]);
+    downloadCsv(`sitedeck-traffic-${state.data.period}d.csv`, toCsv(headers, rows));
+  } else if (!views.performance.hidden && state.insights) {
+    const headers = [t("col.site"), t("col.performance"), t("col.accessibility"), t("col.bestPractices"), t("col.seo"), t("col.measuredAt")];
+    const rows = (state.insights.sites ?? [])
+      .filter((s) => matchesFilter(s.displayName, state.filter))
+      .map((s) => {
+        const l = s.latest ?? {};
+        return [s.displayName, l.performance ?? "", l.accessibility ?? "", l.bestPractices ?? "", l.seo ?? "", l.ts ?? ""];
+      });
+    downloadCsv("sitedeck-performance.csv", toCsv(headers, rows));
+  }
+});
+
+// --- Auto-refresh the visible data view ---
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+let autoTimer = null;
+function applyAutoRefresh() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+  }
+  if (els.autorefresh.checked) {
+    autoTimer = setInterval(() => {
+      if (!views.traffic.hidden) load();
+      else if (!views.performance.hidden) loadInsights();
+    }, AUTO_REFRESH_MS);
+  }
+  store.set("autorefresh", els.autorefresh.checked ? "1" : "0");
+}
+els.autorefresh.addEventListener("change", applyAutoRefresh);
+
+// Keep the "updated x ago" label fresh without re-fetching.
+setInterval(renderMeta, 30000);
 
 (async () => {
   let stored = null;
@@ -465,5 +585,21 @@ tabs.forEach((tab) =>
   document.documentElement.lang = getLocale();
   applyI18n();
   applyPeriodOptions();
+
+  // Restore remembered preferences.
+  const savedPeriod = store.get("period");
+  if (savedPeriod && [...els.period.options].some((o) => o.value === savedPeriod)) {
+    els.period.value = savedPeriod;
+  }
+  const savedSortKey = store.get("sortKey");
+  if (savedSortKey) {
+    state.sortKey = savedSortKey;
+    state.sortDir = store.get("sortDir") === "asc" ? "asc" : "desc";
+  }
+  els.autorefresh.checked = store.get("autorefresh") === "1";
+  applyAutoRefresh();
+  const savedTab = store.get("tab");
+  if (savedTab && savedTab !== "traffic") activateTab(savedTab);
+
   load();
 })();

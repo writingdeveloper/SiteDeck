@@ -179,7 +179,15 @@ function buildMainWindow(base) {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => {
-    const target = new URL(url);
+    let target;
+    try {
+      target = new URL(url);
+    } catch {
+      return;
+    }
+    // Only intercept http(s) navigations (external sites / our OAuth path). Other
+    // schemes — e.g. a blob: CSV download — pass through untouched.
+    if (target.protocol !== 'http:' && target.protocol !== 'https:') return;
     if (target.host !== `localhost:${serverPort}` || target.pathname.startsWith('/oauth')) {
       event.preventDefault();
       openExternalSafely(url);
