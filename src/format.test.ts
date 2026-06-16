@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 // Pure, DOM-free client helpers — shared by the browser (public/app.js) and tested here.
-import { escapeCsvField, toCsv, matchesFilter, relTime } from '../public/format.js';
+import { escapeCsvField, toCsv, matchesFilter, relTime, resolveTheme } from '../public/format.js';
 
 describe('escapeCsvField', () => {
   it('leaves plain values untouched', () => {
@@ -47,5 +47,18 @@ describe('relTime', () => {
     expect(relTime(now - 5 * 60_000, now, 'en', 'now')).toBe('5 minutes ago');
     expect(relTime(now - 2 * 3_600_000, now, 'en', 'now')).toBe('2 hours ago');
     expect(relTime(now - 3 * 86_400_000, now, 'en', 'now')).toBe('3 days ago');
+  });
+});
+
+describe('resolveTheme', () => {
+  it('returns an explicit choice as-is', () => {
+    expect(resolveTheme('light', true)).toBe('light');
+    expect(resolveTheme('dark', false)).toBe('dark');
+  });
+  it('follows the OS preference for "system" (or anything unset)', () => {
+    expect(resolveTheme('system', true)).toBe('light');
+    expect(resolveTheme('system', false)).toBe('dark');
+    expect(resolveTheme(undefined, true)).toBe('light');
+    expect(resolveTheme(null, false)).toBe('dark');
   });
 });

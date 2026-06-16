@@ -19,6 +19,12 @@ export function matchesFilter(name, query) {
   return String(name ?? "").toLowerCase().includes(q);
 }
 
+/** Resolve a theme setting ("system"/unset → the OS preference) to "light" or "dark". */
+export function resolveTheme(setting, prefersLight) {
+  if (setting === "light" || setting === "dark") return setting;
+  return prefersLight ? "light" : "dark";
+}
+
 /** Localized "x minutes ago" for a timestamp, with a "just now" label under a minute. */
 export function relTime(fromMs, nowMs, locale, justNowLabel = "just now") {
   const diffSec = Math.round((nowMs - fromMs) / 1000);

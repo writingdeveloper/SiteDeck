@@ -2,7 +2,7 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme } from "/format.js";
 
 // Tiny localStorage wrapper (private mode / disabled storage degrades gracefully).
 const store = {
@@ -24,6 +24,22 @@ const els = {
   meta: document.getElementById("meta"),
   headers: document.querySelectorAll("th.sortable"),
 };
+
+// Theme: apply the saved choice right away ("system" follows the OS preference).
+function applyTheme(setting) {
+  document.documentElement.dataset.theme = resolveTheme(
+    setting,
+    matchMedia("(prefers-color-scheme: light)").matches,
+  );
+}
+function setTheme(setting) {
+  store.set("theme", setting);
+  applyTheme(setting);
+}
+applyTheme(store.get("theme") || "system");
+matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+  if ((store.get("theme") || "system") === "system") applyTheme("system");
+});
 
 function fmtNum(n) {
   return typeof n === "number" ? n.toLocaleString(getLocale()) : "—";
@@ -85,6 +101,11 @@ function trendTip(values) {
   return `● ${values[values.length - 1]}   ↑ ${Math.max(...values)}   ↓ ${Math.min(...values)}`;
 }
 
+// A single full-width row shown when the search filter hides every site.
+function noMatchRow(cols) {
+  return `<tr><td colspan="${cols}" class="empty">${t("status.noMatch", { q: escapeHtml(state.filter) })}</td></tr>`;
+}
+
 function localizeError(error) {
   if (!error) return "";
   // detail is interpolated into innerHTML (status messages keep an <a> link),
@@ -134,7 +155,8 @@ function render() {
   });
 
   const sites = sortedSites();
-  els.tbody.innerHTML = sites
+  const total = state.data?.sites?.length ?? 0;
+  const rows = sites
     .map(
       (s) => `
       <tr>
@@ -148,8 +170,11 @@ function render() {
       </tr>`,
     )
     .join("");
-  els.table.hidden = (state.data?.sites?.length ?? 0) === 0;
+  els.tbody.innerHTML = rows || (total && state.filter ? noMatchRow(7) : "");
+  els.table.hidden = total === 0;
 }
+
+const SETUP_URL = "https://github.com/writingdeveloper/SiteDeck#google-cloud-setup-one-time-5-min";
 
 async function load() {
   const period = els.period.value;
@@ -164,8 +189,11 @@ async function load() {
     if (data.error) {
       state.data = null;
       els.tbody.innerHTML = "";
+      const setupLink = String(data.error.code ?? "").startsWith("credentials_")
+        ? ` · <a href="${SETUP_URL}" target="_blank" rel="noopener noreferrer">${t("link.setupGuide")}</a>`
+        : "";
       setStatus(
-        `${localizeError(data.error)} · <a href="/oauth/start">${t("link.reconnect")}</a>`,
+        `${localizeError(data.error)} · <a href="/oauth/start">${t("link.reconnect")}</a>${setupLink}`,
         "error",
       );
       return;
@@ -175,7 +203,7 @@ async function load() {
       state.data = null;
       els.tbody.innerHTML = "";
       setStatus(
-        `${t("status.needAuth")} <a href="${data.authUrl}">${t("link.connectAccount")}</a>`,
+        `${t("status.needAuth")} <a href="${data.authUrl}">${t("link.connectAccount")}</a> · <a href="${SETUP_URL}" target="_blank" rel="noopener noreferrer">${t("link.setupGuide")}</a>`,
         "warn",
       );
       return;
@@ -215,9 +243,15 @@ function renderMeta() {
   const d = state.data;
   const when = relTime(new Date(d.generatedAt).getTime(), Date.now(), getLocale(), t("meta.justNow"));
   els.meta.title = fmtWhen(d.generatedAt);
+  const filtered = state.filter
+    ? t("meta.filtered", {
+        shown: d.sites.filter((s) => matchesFilter(s.displayName, state.filter)).length,
+        total: d.sites.length,
+      })
+    : "";
   els.meta.textContent = `${t("meta.summary", { count: d.sites.length, period: d.period, when })}${
     d.errors?.length ? t("meta.errorsSuffix", { count: d.errors.length }) : ""
-  }`;
+  }${filtered}`;
 }
 
 function toggleSort(th) {
@@ -277,7 +311,7 @@ function renderInsights(data) {
     insights.tbody.innerHTML = "";
     insights.status.hidden = false;
     insights.status.className = "status warn";
-    insights.status.innerHTML = t("insights.notConfigured");
+    insights.status.innerHTML = `${t("insights.notConfigured")} <a href="#" class="link-settings">${t("link.openSettings")}</a>`;
     return;
   }
   const sites = data.sites ?? [];
@@ -291,7 +325,7 @@ function renderInsights(data) {
     insights.status.className = "status info";
     insights.status.textContent = t("insights.empty");
   }
-  insights.tbody.innerHTML = sites
+  const visibleRows = sites
     .filter((s) => matchesFilter(s.displayName, state.filter))
     .map((s) => {
       const l = s.latest ?? {};
@@ -307,6 +341,7 @@ function renderInsights(data) {
       </tr>`;
     })
     .join("");
+  insights.tbody.innerHTML = visibleRows || (sites.length && state.filter ? noMatchRow(7) : "");
   insights.meta.textContent = data.lastRunAt
     ? `${t("insights.lastMeasured", { when: fmtWhen(data.lastRunAt) })}${data.errors?.length ? t("insights.errorsSuffix", { count: data.errors.length }) : ""}`
     : "";
@@ -362,6 +397,7 @@ insights.measure.addEventListener("click", async () => {
 const settings = {
   view: document.getElementById("view-settings"),
   lang: document.getElementById("lang-select"),
+  theme: document.getElementById("theme-select"),
   psiKey: document.getElementById("psi-key"),
   psiSave: document.getElementById("psi-save"),
   psiStatus: document.getElementById("psi-status"),
@@ -376,6 +412,7 @@ const settings = {
 async function loadSettings() {
   const s = await (await fetch("/api/settings")).json();
   settings.lang.value = getLocale();
+  settings.theme.value = store.get("theme") || "system";
   settings.psiStatus.textContent = s.hasPsiKey ? t("settings.psiKeySet", { masked: s.psiKeyMasked }) : "";
   settings.credStatus.textContent = s.hasCredentials
     ? t("settings.credentialsFound")
@@ -396,6 +433,8 @@ settings.lang.addEventListener("change", async () => {
   try { localStorage.setItem("sitedeck.locale", settings.lang.value); } catch {}
   rerenderAll();
 });
+
+settings.theme.addEventListener("change", () => setTheme(settings.theme.value));
 
 function showSettingsStatus(text, kind) {
   settings.status.hidden = !text;
@@ -576,6 +615,27 @@ els.autorefresh.addEventListener("change", applyAutoRefresh);
 
 // Keep the "updated x ago" label fresh without re-fetching.
 setInterval(renderMeta, 30000);
+
+// Inline "Open Settings" links (e.g. the PageSpeed not-configured hint).
+document.addEventListener("click", (e) => {
+  const link = e.target.closest && e.target.closest(".link-settings");
+  if (link) {
+    e.preventDefault();
+    activateTab("settings");
+    store.set("tab", "settings");
+  }
+});
+
+// Press "/" to jump to the search box (unless already typing in a field).
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const tag = e.target && e.target.tagName;
+    if (tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
+      e.preventDefault();
+      els.search.focus();
+    }
+  }
+});
 
 (async () => {
   let stored = null;
