@@ -78,6 +78,11 @@
 
       <section id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
         <div class="settings">
+          <div class="field setup">
+            <span data-i18n="settings.setupTitle">Setup</span>
+            <ul id="setup-steps" class="setup-steps"></ul>
+          </div>
+
           <label class="field">
             <span data-i18n="settings.languageLabel">Language</span>
             <select id="lang-select">
@@ -106,11 +111,6 @@
             </span>
             <small id="psi-status" class="muted"></small>
           </label>
-
-          <div class="field">
-            <span data-i18n="settings.credentialsLabel">Google OAuth credentials</span>
-            <small id="cred-status" class="muted"></small>
-          </div>
 
           <div class="field">
             <span data-i18n="settings.versionLabel">Version</span>

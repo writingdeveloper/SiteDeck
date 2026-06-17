@@ -8,6 +8,7 @@ import {
   resolveTheme,
   cwvRating,
   cwvText,
+  deltaClass,
 } from '../public/format.js';
 
 describe('escapeCsvField', () => {
@@ -23,6 +24,17 @@ describe('escapeCsvField', () => {
   it('renders null/undefined as empty', () => {
     expect(escapeCsvField(null)).toBe('');
     expect(escapeCsvField(undefined)).toBe('');
+  });
+  it('neutralizes spreadsheet formula injection (=, +, @, leading -text)', () => {
+    // "=HYPERLINK(""x"")" gets a leading ' then is quoted because it contains ".
+    expect(escapeCsvField('=HYPERLINK("x")')).toBe('"\'=HYPERLINK(""x"")"');
+    expect(escapeCsvField('@cmd')).toBe("'@cmd");
+    expect(escapeCsvField('+1+2')).toBe("'+1+2");
+    expect(escapeCsvField('-2+3')).toBe("'-2+3");
+  });
+  it('does NOT prefix legitimate negative numbers', () => {
+    expect(escapeCsvField('-33.33')).toBe('-33.33');
+    expect(escapeCsvField(-5)).toBe('-5');
   });
 });
 
@@ -84,6 +96,25 @@ describe('cwvText', () => {
   });
   it('shows a dash for null', () => {
     expect(cwvText(null, 'lcp')).toBe('—');
+  });
+});
+
+describe('deltaClass', () => {
+  it('returns "none" for null/non-finite (no prior data)', () => {
+    expect(deltaClass(null, 30)).toBe('none');
+    expect(deltaClass(undefined, 30)).toBe('none');
+    expect(deltaClass(Infinity, 30)).toBe('none');
+  });
+  it('treats values that round to 0.0% as flat (neither up nor down)', () => {
+    expect(deltaClass(0, 30)).toBe('flat');
+    expect(deltaClass(0.04, 30)).toBe('flat');
+    expect(deltaClass(-0.04, 30)).toBe('flat');
+  });
+  it('marks direction, and flags big movers past the threshold', () => {
+    expect(deltaClass(5, 30)).toBe('up');
+    expect(deltaClass(-12, 30)).toBe('down');
+    expect(deltaClass(40, 30)).toBe('up big');
+    expect(deltaClass(-55, 30)).toBe('down big');
   });
 });
 

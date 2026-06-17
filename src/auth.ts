@@ -1,31 +1,53 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { OAuth2Client, type Credentials } from 'google-auth-library';
-import { CONFIG_DIR, CREDENTIALS_PATH, GA_SCOPES, TOKEN_PATH } from './config';
+import { CREDENTIALS_PATH, GA_SCOPES, TOKEN_PATH } from './config';
 import { AppError } from './errors';
+import { writeJsonAtomic } from './atomic';
 
 let client: OAuth2Client | null = null;
 let building: Promise<OAuth2Client> | null = null;
 
-async function loadInstalledCredentials(): Promise<{ clientId: string; clientSecret: string }> {
-  let raw: { installed?: Record<string, string>; web?: Record<string, string> } & Record<string, string>;
+/** Parse a Google OAuth desktop-client JSON string. Throws AppError on a bad shape. */
+export function parseInstalledCredentials(raw: string): { clientId: string; clientSecret: string } {
+  let obj: { installed?: Record<string, string>; web?: Record<string, string> } & Record<string, string>;
   try {
-    raw = JSON.parse(await readFile(CREDENTIALS_PATH, 'utf8'));
+    obj = JSON.parse(raw);
   } catch {
-    throw new AppError('credentials_not_found', CREDENTIALS_PATH);
+    throw new AppError('credentials_invalid', CREDENTIALS_PATH);
   }
-  const node = raw.installed ?? raw.web ?? raw;
+  const node = obj?.installed ?? obj?.web ?? obj ?? {};
   if (!node.client_id || !node.client_secret) {
     throw new AppError('credentials_invalid', CREDENTIALS_PATH);
   }
   return { clientId: node.client_id, clientSecret: node.client_secret };
 }
 
+async function loadInstalledCredentials(): Promise<{ clientId: string; clientSecret: string }> {
+  let raw: string;
+  try {
+    raw = await readFile(CREDENTIALS_PATH, 'utf8');
+  } catch {
+    throw new AppError('credentials_not_found', CREDENTIALS_PATH);
+  }
+  return parseInstalledCredentials(raw);
+}
+
+/** Real credential state for Settings: present+parseable, present-but-bad, or absent. */
+export async function credentialsStatus(): Promise<'valid' | 'invalid' | 'missing'> {
+  if (!existsSync(CREDENTIALS_PATH)) return 'missing';
+  try {
+    parseInstalledCredentials(await readFile(CREDENTIALS_PATH, 'utf8'));
+    return 'valid';
+  } catch {
+    return 'invalid';
+  }
+}
+
 async function persistTokens(current: Credentials, incoming: Credentials): Promise<void> {
-  // Refresh responses omit refresh_token; merge so we never lose it.
-  const merged = { ...current, ...incoming };
-  await mkdir(CONFIG_DIR, { recursive: true });
-  await writeFile(TOKEN_PATH, JSON.stringify(merged, null, 2), { mode: 0o600 });
+  // Refresh responses omit refresh_token; merge so we never lose it. Atomic write
+  // (tmp+rename) so a crash mid-write can't truncate the token and force a re-auth.
+  await writeJsonAtomic(TOKEN_PATH, { ...current, ...incoming }, { mode: 0o600 });
 }
 
 /** Lazily build a single OAuth2Client, loading any cached token from disk. */

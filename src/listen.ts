@@ -12,6 +12,7 @@ export function listenWithFallback(
   server: Server,
   startPort: number,
   maxAttempts: number,
+  host?: string,
 ): Promise<number> {
   return new Promise((resolve, reject) => {
     let port = startPort;
@@ -21,7 +22,7 @@ export function listenWithFallback(
       if (err.code === 'EADDRINUSE' && attempt < maxAttempts) {
         attempt += 1;
         port += 1;
-        server.listen(port);
+        server.listen(port, host);
       } else {
         cleanup();
         reject(err);
@@ -38,6 +39,6 @@ export function listenWithFallback(
 
     server.on('error', onError);
     server.on('listening', onListening);
-    server.listen(port);
+    server.listen(port, host);
   });
 }

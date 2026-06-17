@@ -273,6 +273,19 @@ svg.spark {
   color: var(--muted);
 }
 
+/* Big movers stand out for morning triage even far down the table. */
+.delta.big {
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.delta.up.big {
+  background: rgba(63, 185, 80, 0.16);
+}
+.delta.down.big {
+  background: rgba(248, 81, 73, 0.16);
+}
+
 .meta {
   margin-top: 12px;
   color: var(--muted);
@@ -341,6 +354,40 @@ svg.spark {
 }
 .settings .muted {
   color: var(--muted);
+}
+
+.setup-steps {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setup-steps li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--muted);
+  font-size: 13px;
+}
+.setup-steps .mark {
+  font-weight: 700;
+  width: 1em;
+  flex: none;
+}
+.setup-steps li.ok .mark {
+  color: var(--up);
+}
+.setup-steps li.bad .mark {
+  color: var(--down);
+}
+.setup-steps b {
+  color: var(--text);
+  font-weight: 600;
+}
+.setup-steps a {
+  color: var(--accent);
 }
 .settings a {
   color: var(--accent);

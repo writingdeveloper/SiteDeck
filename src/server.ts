@@ -1,11 +1,10 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import open from 'open';
-import { CREDENTIALS_PATH, OAUTH_CALLBACK_PATH, PERIODS, PORT, type Period } from './config';
-import { getAuthUrl, getClient, handleCallback, isAuthenticated } from './auth';
+import { OAUTH_CALLBACK_PATH, PERIODS, PORT, type Period } from './config';
+import { credentialsStatus, getAuthUrl, getClient, handleCallback, isAuthenticated } from './auth';
 import { AppError } from './errors';
 import { getSettings, updateSettings, type Settings } from './settings';
 import { tServer } from './i18n';
@@ -135,6 +134,13 @@ function errorBody(err: unknown): { error: { code: string; detail?: string } } {
   return { error: { code: 'unknown', detail: err instanceof Error ? err.message : String(err) } };
 }
 
+// A revoked/expired Google grant surfaces deep in the API client; treat it as
+// "needs to reconnect" rather than an opaque 500.
+function isReauthError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /invalid_grant|invalid_token|token (has been|was) (expired|revoked)|unauthorized_client/i.test(msg);
+}
+
 function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -193,6 +199,13 @@ async function getVersion(): Promise<VersionInfo> {
 
 const server = http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(securityHeaders())) res.setHeader(k, v);
+  // DNS-rebinding guard: only serve requests addressed to our own loopback host
+  // (a malicious site rebinding to 127.0.0.1:PORT carries its own Host header).
+  const host = req.headers.host;
+  if (host !== `localhost:${actualPort}` && host !== `127.0.0.1:${actualPort}`) {
+    res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }).end('Forbidden');
+    return;
+  }
   const url = new URL(req.url ?? '/', `http://localhost:${actualPort}`);
 
   if (url.pathname === '/api/summary') {
@@ -204,6 +217,10 @@ const server = http.createServer(async (req, res) => {
       }
       json(res, 200, await buildSummary(period));
     } catch (err) {
+      if (isReauthError(err)) {
+        json(res, 200, { authenticated: false, authUrl: '/oauth/start', reason: 'reauth_required' });
+        return;
+      }
       json(res, 500, errorBody(err));
     }
     return;
@@ -229,11 +246,15 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/settings' && req.method === 'GET') {
     const s = await getSettings();
+    // Actually parse the credentials file, not just existsSync — so a malformed /
+    // wrong (non-Desktop) credentials.json reports "invalid", not a false "found".
+    const credStatus = await credentialsStatus();
     json(res, 200, {
       language: s.language ?? null,
       hasPsiKey: Boolean(s.psiApiKey),
       psiKeyMasked: s.psiApiKey ? `${s.psiApiKey.slice(0, 6)}…${s.psiApiKey.slice(-4)}` : null,
-      hasCredentials: existsSync(CREDENTIALS_PATH),
+      hasCredentials: credStatus === 'valid',
+      credentialsStatus: credStatus,
     });
     return;
   }
@@ -297,7 +318,9 @@ const server = http.createServer(async (req, res) => {
   await serveStatic(res, url.pathname);
 });
 
-listenWithFallback(server, PORT, 10)
+// Bind to loopback only — never 0.0.0.0 — so this stays a local-only tool and
+// doesn't expose GA4 data / settings to anyone else on the LAN.
+listenWithFallback(server, PORT, 10, '127.0.0.1')
   .then((port) => {
     actualPort = port;
     console.log(`SiteDeck → http://localhost:${port}`);

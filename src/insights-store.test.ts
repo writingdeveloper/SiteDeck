@@ -60,6 +60,14 @@ describe('summarize', () => {
     expect(site?.latest?.performance).toBe(75);
     expect(site?.trend).toEqual([70, 75]);
   });
+
+  it('omits null performance points from the trend (no fake drop-to-zero)', () => {
+    let s = emptyStore();
+    s = appendMeasurement(s, 'https://a/', 'A', m('t1', 80), 90);
+    s = appendMeasurement(s, 'https://a/', 'A', m('t2', null as unknown as number), 90);
+    s = appendMeasurement(s, 'https://a/', 'A', m('t3', 90), 90);
+    expect(summarize(s, 30)[0]?.trend).toEqual([80, 90]);
+  });
 });
 
 describe('saveStore / loadStore', () => {

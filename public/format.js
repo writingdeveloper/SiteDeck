@@ -1,15 +1,29 @@
 // Pure, DOM-free formatting helpers shared by the dashboard front-end and unit
 // tests. No imports, no browser globals beyond Intl (available in Node too).
 
-/** Escape one CSV field (RFC 4180): quote if it contains a comma/quote/newline. */
+/** Escape one CSV field (RFC 4180): quote if it contains a comma/quote/newline.
+ *  Also neutralizes spreadsheet formula injection — a leading =/+/@ (or a leading
+ *  - that isn't a real number) is prefixed with ' so Excel/Sheets treats it as text. */
 export function escapeCsvField(value) {
-  const s = value === null || value === undefined ? "" : String(value);
+  let s = value === null || value === undefined ? "" : String(value);
+  if (/^[=+@\t\r]/.test(s) || (s[0] === "-" && !Number.isFinite(Number(s)))) {
+    s = "'" + s;
+  }
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /** Build a CSV document from a header row + data rows (arrays of cells). */
 export function toCsv(headers, rows) {
   return [headers, ...rows].map((r) => r.map(escapeCsvField).join(",")).join("\r\n");
+}
+
+/** Classify a period-over-period delta for the badge: "none" (no prior data),
+ *  "flat" (rounds to 0.0%), "up"/"down", or "up big"/"down big" past bigThreshold. */
+export function deltaClass(pct, bigThreshold) {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) return "none";
+  if (Math.abs(pct) < 0.05) return "flat";
+  const dir = pct > 0 ? "up" : "down";
+  return Math.abs(pct) >= bigThreshold ? dir + " big" : dir;
 }
 
 /** Case-insensitive substring match; an empty/whitespace query matches everything. */

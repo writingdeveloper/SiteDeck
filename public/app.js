@@ -2,7 +2,10 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass } from "/format.js";
+
+// A change of this magnitude (%) is a "big mover" worth emphasizing for triage.
+const DELTA_BIG = 30;
 
 // Tiny localStorage wrapper (private mode / disabled storage degrades gracefully).
 const store = {
@@ -52,15 +55,15 @@ function fmtWhen(value) {
 }
 
 function fmtDelta(pct) {
-  if (pct === null || pct === undefined || !isFinite(pct)) {
-    return '<span class="delta flat">—</span>';
-  }
-  const up = pct >= 0;
+  const cls = deltaClass(pct, DELTA_BIG);
+  if (cls === "none") return '<span class="delta flat">—</span>';
   const n = Math.abs(pct).toLocaleString(getLocale(), {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
-  return `<span class="delta ${up ? "up" : "down"}">${up ? "▲" : "▼"} ${n}%</span>`;
+  // ~0% is neutral (no green up-arrow); big movers get the .big emphasis class.
+  if (cls === "flat") return `<span class="delta flat">${n}%</span>`;
+  return `<span class="delta ${cls}">${cls.startsWith("up") ? "▲" : "▼"} ${n}%</span>`;
 }
 
 function sparkline(values, label = "", w = 84, h = 24) {
@@ -212,7 +215,15 @@ async function load() {
     state.data = data;
     if (!data.sites || data.sites.length === 0) {
       els.tbody.innerHTML = "";
-      setStatus(t("status.noProperties"), "warn");
+      if (data.errors && data.errors.length) {
+        // Every property failed (quota / token / network) — don't claim "no properties".
+        setStatus(
+          `${t("status.allFailed", { count: data.errors.length })} · <a href="/oauth/start">${t("link.reconnect")}</a>`,
+          "error",
+        );
+      } else {
+        setStatus(t("status.noProperties"), "warn");
+      }
       return;
     }
 
@@ -249,9 +260,14 @@ function renderMeta() {
         total: d.sites.length,
       })
     : "";
+  // Morning-triage signal: how many sites' active users dropped sharply.
+  const drops = d.sites.filter(
+    (s) => typeof s.activeUsers?.deltaPct === "number" && s.activeUsers.deltaPct <= -DELTA_BIG,
+  ).length;
+  const dropSuffix = drops ? t("meta.sharpDrops", { count: drops }) : "";
   els.meta.textContent = `${t("meta.summary", { count: d.sites.length, period: d.period, when })}${
     d.errors?.length ? t("meta.errorsSuffix", { count: d.errors.length }) : ""
-  }${filtered}`;
+  }${dropSuffix}${filtered}`;
 }
 
 function toggleSort(th) {
@@ -409,7 +425,7 @@ const settings = {
   psiKey: document.getElementById("psi-key"),
   psiSave: document.getElementById("psi-save"),
   psiStatus: document.getElementById("psi-status"),
-  credStatus: document.getElementById("cred-status"),
+  setupSteps: document.getElementById("setup-steps"),
   versionCurrent: document.getElementById("version-current"),
   checkUpdate: document.getElementById("check-update"),
   updateRestart: document.getElementById("update-restart"),
@@ -422,13 +438,33 @@ async function loadSettings() {
   settings.lang.value = getLocale();
   settings.theme.value = store.get("theme") || "system";
   settings.psiStatus.textContent = s.hasPsiKey ? t("settings.psiKeySet", { masked: s.psiKeyMasked }) : "";
-  settings.credStatus.textContent = s.hasCredentials
-    ? t("settings.credentialsFound")
-    : t("settings.credentialsMissing");
+  renderSetup(s);
   try {
     const v = await (await fetch("/api/version")).json();
     settings.versionCurrent.textContent = `v${v.current}`;
   } catch {}
+}
+
+// Onboarding checklist: live ✓/✗ for credentials (valid/invalid/missing) + PSI key.
+function renderSetup(s) {
+  const cs = s.credentialsStatus || (s.hasCredentials ? "valid" : "missing");
+  const credOk = cs === "valid";
+  const credText =
+    cs === "valid"
+      ? t("settings.credentialsFound")
+      : cs === "invalid"
+        ? t("settings.credentialsInvalid")
+        : t("settings.credentialsMissing");
+  const psiOk = Boolean(s.hasPsiKey);
+  const psiText = psiOk
+    ? t("settings.psiKeySet", { masked: escapeHtml(s.psiKeyMasked ?? "") })
+    : t("settings.psiKeyOptional");
+  const guide = `<a href="${SETUP_URL}" target="_blank" rel="noopener noreferrer">${t("link.setupGuide")}</a>`;
+  settings.setupSteps.innerHTML =
+    `<li class="${credOk ? "ok" : "bad"}"><span class="mark">${credOk ? "✓" : "✗"}</span> ` +
+    `<b>${t("settings.credentialsLabel")}</b> — ${credText} ${credOk ? "" : guide}</li>` +
+    `<li class="${psiOk ? "ok" : "opt"}"><span class="mark">${psiOk ? "✓" : "○"}</span> ` +
+    `<b>${t("settings.psiKeyLabel")}</b> — ${psiText}</li>`;
 }
 
 settings.lang.addEventListener("change", async () => {

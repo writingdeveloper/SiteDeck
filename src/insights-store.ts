@@ -53,7 +53,12 @@ export function summarize(store: InsightsStore, trendLength: number): InsightsSi
     url,
     displayName: entry.displayName,
     latest: entry.history[entry.history.length - 1] ?? null,
-    trend: entry.history.slice(-trendLength).map((measurement) => measurement.performance ?? 0),
+    // Only real numeric performance points — a null run must not plot as a
+    // drop-to-zero (fake "perf collapsed" alarm) in the sparkline / min-max tip.
+    trend: entry.history
+      .slice(-trendLength)
+      .map((measurement) => measurement.performance)
+      .filter((p): p is number => typeof p === 'number'),
   }));
 }
 
