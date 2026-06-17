@@ -323,14 +323,16 @@ const server = http.createServer(async (req, res) => {
 listenWithFallback(server, PORT, 10, '127.0.0.1')
   .then((port) => {
     actualPort = port;
-    console.log(`SiteDeck → http://localhost:${port}`);
+    console.log(`SiteDeck → http://127.0.0.1:${port}`);
     // Machine-readable line so the Electron main process learns the real port.
     console.log(`SITEDECK_LISTENING ${port}`);
     void initInsights()
       .then(startInsightsScheduler)
       .catch((err) => console.error('insights init failed:', err));
     if (!process.env.SITEDECK_NO_OPEN) {
-      void open(`http://localhost:${port}`);
+      // 127.0.0.1 (not localhost) to match the loopback bind even when localhost
+      // resolves to ::1.
+      void open(`http://127.0.0.1:${port}`);
     }
   })
   .catch((err: Error) => {

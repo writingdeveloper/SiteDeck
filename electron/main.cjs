@@ -126,7 +126,7 @@ function startServer() {
 }
 
 function onServerListening() {
-  const base = `http://localhost:${serverPort}`;
+  const base = `http://127.0.0.1:${serverPort}`;
   waitForServer(
     base,
     () => createWindow(base),
@@ -188,13 +188,13 @@ function buildMainWindow(base) {
     // Only intercept http(s) navigations (external sites / our OAuth path). Other
     // schemes — e.g. a blob: CSV download — pass through untouched.
     if (target.protocol !== 'http:' && target.protocol !== 'https:') return;
-    if (target.host !== `localhost:${serverPort}` || target.pathname.startsWith('/oauth')) {
+    if (target.host !== `127.0.0.1:${serverPort}` || target.pathname.startsWith('/oauth')) {
       event.preventDefault();
       openExternalSafely(url);
     }
   });
 
-  win.loadURL(base || `http://localhost:${serverPort}`);
+  win.loadURL(base || `http://127.0.0.1:${serverPort}`);
 }
 
 // Replace the silent black screen with a readable error when the server can't start.
@@ -250,7 +250,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     app.on('activate', () => {
       if (serverPort !== null && BrowserWindow.getAllWindows().length === 0) {
-        buildMainWindow(`http://localhost:${serverPort}`);
+        buildMainWindow(`http://127.0.0.1:${serverPort}`);
       }
     });
   });
