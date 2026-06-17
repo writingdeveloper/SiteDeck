@@ -17,6 +17,9 @@ const m = (ts: string, p: number) => ({
   accessibility: 90,
   bestPractices: 90,
   seo: 90,
+  lcpMs: null,
+  cls: null,
+  inpMs: null,
 });
 
 describe('appendMeasurement', () => {

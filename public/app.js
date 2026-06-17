@@ -2,7 +2,7 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime, resolveTheme } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText } from "/format.js";
 
 // Tiny localStorage wrapper (private mode / disabled storage degrades gracefully).
 const store = {
@@ -302,6 +302,11 @@ function scoreCell(v) {
   return `<span class="score ${cls}">${v}</span>`;
 }
 
+// A Core Web Vital cell, coloured by the good/needs-improvement/poor thresholds.
+function cwvCell(value, kind) {
+  return `<span class="score ${cwvRating(value, kind)}">${cwvText(value, kind)}</span>`;
+}
+
 function renderInsights(data) {
   insights.measure.disabled = Boolean(data.isMeasuring);
   if (data.isMeasuring) insights.measure.setAttribute("aria-busy", "true");
@@ -336,12 +341,15 @@ function renderInsights(data) {
         <td class="num">${scoreCell(l.accessibility)}</td>
         <td class="num">${scoreCell(l.bestPractices)}</td>
         <td class="num">${scoreCell(l.seo)}</td>
+        <td class="num">${cwvCell(l.lcpMs, "lcp")}</td>
+        <td class="num">${cwvCell(l.cls, "cls")}</td>
+        <td class="num">${cwvCell(l.inpMs, "inp")}</td>
         <td class="top">${when}</td>
         <td class="spark-cell" title="${escapeHtml(trendTip(s.trend))}">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
       </tr>`;
     })
     .join("");
-  insights.tbody.innerHTML = visibleRows || (sites.length && state.filter ? noMatchRow(7) : "");
+  insights.tbody.innerHTML = visibleRows || (sites.length && state.filter ? noMatchRow(10) : "");
   insights.meta.textContent = data.lastRunAt
     ? `${t("insights.lastMeasured", { when: fmtWhen(data.lastRunAt) })}${data.errors?.length ? t("insights.errorsSuffix", { count: data.errors.length }) : ""}`
     : "";
@@ -584,12 +592,12 @@ els.export.addEventListener("click", () => {
     ]);
     downloadCsv(`sitedeck-traffic-${state.data.period}d.csv`, toCsv(headers, rows));
   } else if (!views.performance.hidden && state.insights) {
-    const headers = [t("col.site"), t("col.performance"), t("col.accessibility"), t("col.bestPractices"), t("col.seo"), t("col.measuredAt")];
+    const headers = [t("col.site"), t("col.performance"), t("col.accessibility"), t("col.bestPractices"), t("col.seo"), t("col.lcp"), t("col.cls"), t("col.inp"), t("col.measuredAt")];
     const rows = (state.insights.sites ?? [])
       .filter((s) => matchesFilter(s.displayName, state.filter))
       .map((s) => {
         const l = s.latest ?? {};
-        return [s.displayName, l.performance ?? "", l.accessibility ?? "", l.bestPractices ?? "", l.seo ?? "", l.ts ?? ""];
+        return [s.displayName, l.performance ?? "", l.accessibility ?? "", l.bestPractices ?? "", l.seo ?? "", l.lcpMs ?? "", l.cls ?? "", l.inpMs ?? "", l.ts ?? ""];
       });
     downloadCsv("sitedeck-performance.csv", toCsv(headers, rows));
   }

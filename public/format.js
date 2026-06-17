@@ -19,6 +19,25 @@ export function matchesFilter(name, query) {
   return String(name ?? "").toLowerCase().includes(q);
 }
 
+// Core Web Vitals "good / needs-improvement / poor" thresholds.
+const CWV_THRESHOLDS = { lcp: [2500, 4000], cls: [0.1, 0.25], inp: [200, 500] };
+
+/** Rate a Core Web Vital value as "good" | "avg" | "poor" (or "na" if unknown). */
+export function cwvRating(value, kind) {
+  const t = CWV_THRESHOLDS[kind];
+  if (value === null || value === undefined || !t) return "na";
+  return value <= t[0] ? "good" : value <= t[1] ? "avg" : "poor";
+}
+
+/** Display a Core Web Vital: LCP in seconds, CLS to 2 dp, INP in ms. */
+export function cwvText(value, kind) {
+  if (value === null || value === undefined) return "—";
+  if (kind === "lcp") return `${(value / 1000).toFixed(1)}s`;
+  if (kind === "cls") return value.toFixed(2);
+  if (kind === "inp") return `${Math.round(value)}ms`;
+  return String(value);
+}
+
 /** Resolve a theme setting ("system"/unset → the OS preference) to "light" or "dark". */
 export function resolveTheme(setting, prefersLight) {
   if (setting === "light" || setting === "dark") return setting;

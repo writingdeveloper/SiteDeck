@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 // Pure, DOM-free client helpers — shared by the browser (public/app.js) and tested here.
-import { escapeCsvField, toCsv, matchesFilter, relTime, resolveTheme } from '../public/format.js';
+import {
+  escapeCsvField,
+  toCsv,
+  matchesFilter,
+  relTime,
+  resolveTheme,
+  cwvRating,
+  cwvText,
+} from '../public/format.js';
 
 describe('escapeCsvField', () => {
   it('leaves plain values untouched', () => {
@@ -47,6 +55,35 @@ describe('relTime', () => {
     expect(relTime(now - 5 * 60_000, now, 'en', 'now')).toBe('5 minutes ago');
     expect(relTime(now - 2 * 3_600_000, now, 'en', 'now')).toBe('2 hours ago');
     expect(relTime(now - 3 * 86_400_000, now, 'en', 'now')).toBe('3 days ago');
+  });
+});
+
+describe('cwvRating', () => {
+  it('rates LCP / CLS / INP against the Core Web Vitals thresholds', () => {
+    expect(cwvRating(2000, 'lcp')).toBe('good');
+    expect(cwvRating(3000, 'lcp')).toBe('avg');
+    expect(cwvRating(5000, 'lcp')).toBe('poor');
+    expect(cwvRating(0.05, 'cls')).toBe('good');
+    expect(cwvRating(0.2, 'cls')).toBe('avg');
+    expect(cwvRating(0.3, 'cls')).toBe('poor');
+    expect(cwvRating(150, 'inp')).toBe('good');
+    expect(cwvRating(400, 'inp')).toBe('avg');
+    expect(cwvRating(600, 'inp')).toBe('poor');
+  });
+  it('returns "na" for null or an unknown metric', () => {
+    expect(cwvRating(null, 'lcp')).toBe('na');
+    expect(cwvRating(100, 'xyz')).toBe('na');
+  });
+});
+
+describe('cwvText', () => {
+  it('formats LCP in seconds, CLS to 2 dp, INP in ms', () => {
+    expect(cwvText(2500, 'lcp')).toBe('2.5s');
+    expect(cwvText(0.05, 'cls')).toBe('0.05');
+    expect(cwvText(180, 'inp')).toBe('180ms');
+  });
+  it('shows a dash for null', () => {
+    expect(cwvText(null, 'lcp')).toBe('—');
   });
 });
 
