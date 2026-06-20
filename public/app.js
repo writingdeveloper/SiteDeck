@@ -66,6 +66,16 @@ function fmtDelta(pct) {
   return `<span class="delta ${cls}">${cls.startsWith("up") ? "▲" : "▼"} ${n}%</span>`;
 }
 
+// Search Console average position: "—" when there's no matched site or no
+// impressions in the period (an average position is only meaningful with impressions).
+function fmtPos(search) {
+  if (!search || !(search.impressions > 0)) return "—";
+  return search.position.toLocaleString(getLocale(), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+}
+
 function sparkline(values, label = "", w = 84, h = 24) {
   if (!values || values.length === 0) return "";
   const max = Math.max(...values, 1);
@@ -127,6 +137,16 @@ function setStatus(html, kind) {
   els.status.hidden = !html;
 }
 
+// Numeric sort value for a site under the active column. Search columns read from
+// s.search; every other column is a MetricDelta with a .current. For average
+// position (lower = better) a site with no impressions sorts last via Infinity.
+function sortValue(s, key) {
+  if (key === "searchImpressions") return s.search?.impressions ?? 0;
+  if (key === "searchClicks") return s.search?.clicks ?? 0;
+  if (key === "searchPosition") return s.search && s.search.impressions > 0 ? s.search.position : Infinity;
+  return s[key]?.current ?? 0;
+}
+
 function sortedSites() {
   const sites = (state.data?.sites ?? []).filter((s) => matchesFilter(s.displayName, state.filter));
   const dir = state.sortDir === "asc" ? 1 : -1;
@@ -136,8 +156,8 @@ function sortedSites() {
       const bv = b.displayName.toLowerCase();
       return av < bv ? -dir : av > bv ? dir : 0;
     }
-    const av = a[state.sortKey]?.current ?? 0;
-    const bv = b[state.sortKey]?.current ?? 0;
+    const av = sortValue(a, state.sortKey);
+    const bv = sortValue(b, state.sortKey);
     return (av - bv) * dir;
   });
   return sites;
@@ -168,13 +188,16 @@ function render() {
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
         <td class="num">${fmtNum(s.aiSessions?.current)} ${fmtDelta(s.aiSessions?.deltaPct)}</td>
+        <td class="num">${fmtNum(s.search?.impressions)}</td>
+        <td class="num">${fmtNum(s.search?.clicks)}</td>
+        <td class="num">${fmtPos(s.search)}</td>
         <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
         <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
         <td class="spark-cell" title="${escapeHtml(trendTip(s.trend))}">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
       </tr>`,
     )
     .join("");
-  els.tbody.innerHTML = rows || (total && state.filter ? noMatchRow(8) : "");
+  els.tbody.innerHTML = rows || (total && state.filter ? noMatchRow(11) : "");
   els.table.hidden = total === 0;
 }
 
@@ -277,7 +300,8 @@ function toggleSort(th) {
     state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
   } else {
     state.sortKey = key;
-    state.sortDir = key === "name" ? "asc" : "desc";
+    // Average position is "lower is better", so default it to ascending like names.
+    state.sortDir = key === "name" || key === "searchPosition" ? "asc" : "desc";
   }
   render();
   store.set("sortKey", state.sortKey);
@@ -427,6 +451,8 @@ const settings = {
   psiSave: document.getElementById("psi-save"),
   psiStatus: document.getElementById("psi-status"),
   setupSteps: document.getElementById("setup-steps"),
+  gscField: document.getElementById("gsc-field"),
+  gscStatus: document.getElementById("gsc-status"),
   versionCurrent: document.getElementById("version-current"),
   checkUpdate: document.getElementById("check-update"),
   updateRestart: document.getElementById("update-restart"),
@@ -440,6 +466,7 @@ async function loadSettings() {
   settings.theme.value = store.get("theme") || "system";
   settings.psiStatus.textContent = s.hasPsiKey ? t("settings.psiKeySet", { masked: s.psiKeyMasked }) : "";
   renderSetup(s);
+  renderGsc(s.searchConsole);
   try {
     const v = await (await fetch("/api/version")).json();
     settings.versionCurrent.textContent = `v${v.current}`;
@@ -466,6 +493,15 @@ function renderSetup(s) {
     `<b>${t("settings.credentialsLabel")}</b> — ${credText} ${credOk ? "" : guide}</li>` +
     `<li class="${psiOk ? "ok" : "opt"}"><span class="mark">${psiOk ? "✓" : "○"}</span> ` +
     `<b>${t("settings.psiKeyLabel")}</b> — ${psiText}</li>`;
+}
+
+// Show a one-time "reconnect to enable Search Console" prompt only when the cached
+// token predates the webmasters scope (server reports searchConsole === "reconnect").
+function renderGsc(status) {
+  if (!settings.gscField) return;
+  const show = status === "reconnect";
+  settings.gscField.hidden = !show;
+  if (show) settings.gscStatus.textContent = t("settings.searchReconnect");
 }
 
 settings.lang.addEventListener("change", async () => {
@@ -619,13 +655,14 @@ function downloadCsv(filename, csv) {
 
 els.export.addEventListener("click", () => {
   if (!views.traffic.hidden && state.data) {
-    const headers = [t("col.site"), t("col.activeUsers"), "Δ%", t("col.sessions"), "Δ%", t("col.keyEvents"), "Δ%", t("col.aiTraffic"), "Δ%", t("col.topPage"), t("col.topSource")];
+    const headers = [t("col.site"), t("col.activeUsers"), "Δ%", t("col.sessions"), "Δ%", t("col.keyEvents"), "Δ%", t("col.aiTraffic"), "Δ%", t("col.searchImpressions"), t("col.searchClicks"), t("col.searchPosition"), t("col.topPage"), t("col.topSource")];
     const rows = sortedSites().map((s) => [
       s.displayName,
       s.activeUsers?.current ?? "", s.activeUsers?.deltaPct ?? "",
       s.sessions?.current ?? "", s.sessions?.deltaPct ?? "",
       s.keyEvents?.current ?? "", s.keyEvents?.deltaPct ?? "",
       s.aiSessions?.current ?? "", s.aiSessions?.deltaPct ?? "",
+      s.search?.impressions ?? "", s.search?.clicks ?? "", s.search?.position ?? "",
       s.topPage ?? "", s.topSource ?? "",
     ]);
     downloadCsv(`sitedeck-traffic-${state.data.period}d.csv`, toCsv(headers, rows));

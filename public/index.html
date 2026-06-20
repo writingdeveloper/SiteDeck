@@ -42,6 +42,9 @@
               <th class="sortable num" data-sort="sessions" scope="col" tabindex="0" aria-sort="none" data-i18n="col.sessions">Sessions</th>
               <th class="sortable num" data-sort="keyEvents" scope="col" tabindex="0" aria-sort="none" data-i18n="col.keyEvents">Key events</th>
               <th class="sortable num" data-sort="aiSessions" scope="col" tabindex="0" aria-sort="none" title="AI assistant referrals — ChatGPT, Perplexity, Gemini, Copilot…" data-i18n="col.aiTraffic">AI</th>
+              <th class="sortable num" data-sort="searchImpressions" scope="col" tabindex="0" aria-sort="none" title="Search Console impressions (Google Search)" data-i18n="col.searchImpressions">Impr.</th>
+              <th class="sortable num" data-sort="searchClicks" scope="col" tabindex="0" aria-sort="none" title="Search Console clicks (Google Search)" data-i18n="col.searchClicks">Clicks</th>
+              <th class="sortable num" data-sort="searchPosition" scope="col" tabindex="0" aria-sort="none" title="Search Console average position — lower is better" data-i18n="col.searchPosition">Pos</th>
               <th scope="col" data-i18n="col.topPage">Top page</th>
               <th scope="col" data-i18n="col.topSource">Top channel</th>
               <th scope="col" data-i18n="col.trend">Trend</th>
@@ -82,6 +85,14 @@
           <div class="field setup">
             <span data-i18n="settings.setupTitle">Setup</span>
             <ul id="setup-steps" class="setup-steps"></ul>
+          </div>
+
+          <div class="field" id="gsc-field" hidden>
+            <span data-i18n="settings.searchConsoleLabel">Search Console</span>
+            <span class="field-row">
+              <small id="gsc-status" class="muted"></small>
+              <a href="/oauth/start" data-i18n="link.reconnect">Reconnect</a>
+            </span>
           </div>
 
           <label class="field">
