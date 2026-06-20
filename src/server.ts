@@ -9,7 +9,7 @@ import { AppError } from './errors';
 import { getSettings, updateSettings, type Settings } from './settings';
 import { tServer } from './i18n';
 import { comparisonRanges } from './periods';
-import { fetchDailySeries, fetchRange, fetchTopValue, listProperties } from './ga';
+import { fetchAiSessions, fetchDailySeries, fetchRange, fetchTopValue, listProperties } from './ga';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import { listenWithFallback } from './listen';
@@ -81,12 +81,14 @@ async function buildSummary(period: Period): Promise<{
     await Promise.all(
       props.map(async (p): Promise<SiteSummary | null> => {
         try {
-          const [cur, prev, topPage, topSource, trend] = await Promise.all([
+          const [cur, prev, topPage, topSource, trend, aiCur, aiPrev] = await Promise.all([
             fetchRange(auth, p.propertyId, ranges.current),
             fetchRange(auth, p.propertyId, ranges.previous),
             fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
             fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
             fetchDailySeries(auth, p.propertyId, ranges.current),
+            fetchAiSessions(auth, p.propertyId, ranges.current),
+            fetchAiSessions(auth, p.propertyId, ranges.previous),
           ]);
           return {
             propertyId: p.propertyId,
@@ -94,6 +96,7 @@ async function buildSummary(period: Period): Promise<{
             activeUsers: metricDelta(cur.activeUsers, prev.activeUsers),
             sessions: metricDelta(cur.sessions, prev.sessions),
             keyEvents: metricDelta(cur.keyEvents, prev.keyEvents),
+            aiSessions: metricDelta(aiCur, aiPrev),
             trend,
             topPage,
             topSource,

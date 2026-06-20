@@ -47,6 +47,45 @@ export async function listProperties(auth: OAuth2Client): Promise<PropertyRef[]>
   return props;
 }
 
+// Referral sources for AI answer engines. GA4's native "AI Assistant" channel
+// covers ChatGPT/Gemini/Copilot/Grok/DeepSeek; Perplexity (and any not-yet-rolled-out
+// property) is caught by the source regex. Together they approximate AI-referred
+// web sessions (ChatGPT mobile/Atlas strip the referrer, so this is a floor).
+const AI_SOURCE_REGEX =
+  'perplexity\\.ai|chatgpt\\.com|chat\\.openai\\.com|claude\\.ai|gemini\\.google\\.com|copilot\\.microsoft\\.com|deepseek\\.com|you\\.com';
+
+/** Sessions referred by AI answer engines for one property over a date range. */
+export async function fetchAiSessions(
+  auth: OAuth2Client,
+  propertyId: string,
+  range: DateRange,
+): Promise<number> {
+  const [report] = await data(auth).runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
+    metrics: [{ name: 'sessions' }],
+    dimensionFilter: {
+      orGroup: {
+        expressions: [
+          {
+            filter: {
+              fieldName: 'sessionDefaultChannelGroup',
+              stringFilter: { matchType: 'EXACT', value: 'AI Assistant' },
+            },
+          },
+          {
+            filter: {
+              fieldName: 'sessionSource',
+              stringFilter: { matchType: 'FULL_REGEXP', value: AI_SOURCE_REGEX },
+            },
+          },
+        ],
+      },
+    },
+  });
+  return Number(report.rows?.[0]?.metricValues?.[0]?.value ?? 0);
+}
+
 /** activeUsers + sessions totals for one property over a single date range. */
 export async function fetchRange(
   auth: OAuth2Client,

@@ -167,13 +167,14 @@ function render() {
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
+        <td class="num">${fmtNum(s.aiSessions?.current)} ${fmtDelta(s.aiSessions?.deltaPct)}</td>
         <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
         <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
         <td class="spark-cell" title="${escapeHtml(trendTip(s.trend))}">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
       </tr>`,
     )
     .join("");
-  els.tbody.innerHTML = rows || (total && state.filter ? noMatchRow(7) : "");
+  els.tbody.innerHTML = rows || (total && state.filter ? noMatchRow(8) : "");
   els.table.hidden = total === 0;
 }
 
@@ -618,12 +619,13 @@ function downloadCsv(filename, csv) {
 
 els.export.addEventListener("click", () => {
   if (!views.traffic.hidden && state.data) {
-    const headers = [t("col.site"), t("col.activeUsers"), "Δ%", t("col.sessions"), "Δ%", t("col.keyEvents"), "Δ%", t("col.topPage"), t("col.topSource")];
+    const headers = [t("col.site"), t("col.activeUsers"), "Δ%", t("col.sessions"), "Δ%", t("col.keyEvents"), "Δ%", t("col.aiTraffic"), "Δ%", t("col.topPage"), t("col.topSource")];
     const rows = sortedSites().map((s) => [
       s.displayName,
       s.activeUsers?.current ?? "", s.activeUsers?.deltaPct ?? "",
       s.sessions?.current ?? "", s.sessions?.deltaPct ?? "",
       s.keyEvents?.current ?? "", s.keyEvents?.deltaPct ?? "",
+      s.aiSessions?.current ?? "", s.aiSessions?.deltaPct ?? "",
       s.topPage ?? "", s.topSource ?? "",
     ]);
     downloadCsv(`sitedeck-traffic-${state.data.period}d.csv`, toCsv(headers, rows));

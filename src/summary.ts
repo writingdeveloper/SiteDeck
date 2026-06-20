@@ -12,6 +12,8 @@ export interface SiteSummary {
   activeUsers: MetricDelta;
   sessions: MetricDelta;
   keyEvents: MetricDelta;
+  /** Sessions referred by AI answer engines (ChatGPT, Perplexity, Gemini, …). */
+  aiSessions: MetricDelta;
   trend: number[];
   topPage: string | null;
   topSource: string | null;
