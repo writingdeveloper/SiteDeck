@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest';
-import { normalizeHost, matchSites, parseGscSites, parseSearchMetrics } from './gsc';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { OAuth2Client } from 'google-auth-library';
+import {
+  normalizeHost,
+  matchSites,
+  parseGscSites,
+  parseSearchMetrics,
+  fetchSearchMetrics,
+  listGscSites,
+} from './gsc';
+
+afterEach(() => vi.unstubAllGlobals());
+const auth = { getAccessToken: async () => ({ token: 'tok' }) } as unknown as OAuth2Client;
+function stubJson(value: unknown, ok = true, status = 200) {
+  vi.stubGlobal('fetch', () =>
+    Promise.resolve({ ok, status, statusText: 'x', json: async () => value } as unknown as Response),
+  );
+}
 
 describe('normalizeHost', () => {
   it('strips the sc-domain: prefix', () => {
@@ -138,5 +154,31 @@ describe('parseSearchMetrics', () => {
   it('returns zeros when there are no rows', () => {
     expect(parseSearchMetrics({})).toEqual({ clicks: 0, impressions: 0, position: 0 });
     expect(parseSearchMetrics({ rows: [] })).toEqual({ clicks: 0, impressions: 0, position: 0 });
+  });
+});
+
+describe('listGscSites / fetchSearchMetrics (network)', () => {
+  it('listGscSites returns only the verified sites from the API', async () => {
+    stubJson({
+      siteEntry: [
+        { siteUrl: 'sc-domain:x.com', permissionLevel: 'siteOwner' },
+        { siteUrl: 'https://y.com/', permissionLevel: 'siteUnverifiedUser' },
+      ],
+    });
+    expect(await listGscSites(auth)).toEqual(['sc-domain:x.com']);
+  });
+
+  it('fetchSearchMetrics parses the aggregate row', async () => {
+    stubJson({ rows: [{ clicks: 5, impressions: 100, position: 3.2 }] });
+    const m = await fetchSearchMetrics(auth, 'sc-domain:x.com', {
+      startDate: '2024-01-01',
+      endDate: '2024-01-28',
+    });
+    expect(m).toEqual({ clicks: 5, impressions: 100, position: 3.2 });
+  });
+
+  it('throws on a non-ok response so the caller can degrade to no data', async () => {
+    stubJson({}, false, 403);
+    await expect(listGscSites(auth)).rejects.toThrow(/403/);
   });
 });

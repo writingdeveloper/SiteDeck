@@ -1,5 +1,20 @@
-import { describe, it, expect } from 'vitest';
-import { parseOnPage } from './onpage';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { parseOnPage, fetchOnPage, mapPool } from './onpage';
+
+afterEach(() => vi.unstubAllGlobals());
+
+// Stub global fetch with a per-URL responder so the network wrappers can be tested
+// without real requests.
+function stubFetch(fn: (url: string) => { ok: boolean; status?: number; body?: string }) {
+  vi.stubGlobal('fetch', (input: unknown) => {
+    const r = fn(String(input));
+    return Promise.resolve({
+      ok: r.ok,
+      status: r.status ?? (r.ok ? 200 : 500),
+      text: async () => r.body ?? '',
+    } as unknown as Response);
+  });
+}
 
 const FULL = `<!doctype html><html><head>
   <title>Soursea — AI tools</title>
@@ -56,5 +71,68 @@ describe('parseOnPage', () => {
   it('detects JSON-LD structured data with either quote style', () => {
     expect(parseOnPage(`<script type='application/ld+json'>{}</script>`).structuredData).toBe(true);
     expect(parseOnPage('<script type="text/javascript"></script>').structuredData).toBe(false);
+  });
+});
+
+const SITE = { propertyId: '1', displayName: 'X', url: 'https://x.com' };
+
+describe('fetchOnPage', () => {
+  it('parses checks on success and probes /llms.txt', async () => {
+    stubFetch((url) =>
+      url.endsWith('/llms.txt')
+        ? { ok: true }
+        : { ok: true, body: '<title>Hi</title><meta name="description" content="d">' },
+    );
+    const r = await fetchOnPage(SITE);
+    expect(r.checks?.title).toBe(true);
+    expect(r.checks?.description).toBe(true);
+    expect(r.llmsTxt).toBe(true);
+    expect(r.error).toBeNull();
+  });
+
+  it('treats a missing /llms.txt as absent without failing the page checks', async () => {
+    stubFetch((url) => (url.endsWith('/llms.txt') ? { ok: false } : { ok: true, body: '<title>Hi</title>' }));
+    const r = await fetchOnPage(SITE);
+    expect(r.checks?.title).toBe(true);
+    expect(r.llmsTxt).toBe(false);
+  });
+
+  it('degrades to checks:null + error when the homepage fetch throws', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('boom')));
+    const r = await fetchOnPage(SITE);
+    expect(r.checks).toBeNull();
+    expect(r.error).toContain('boom');
+    expect(r.llmsTxt).toBe(false);
+  });
+
+  it('records an HTTP error and still returns the site', async () => {
+    stubFetch(() => ({ ok: false, status: 503 }));
+    const r = await fetchOnPage(SITE);
+    expect(r.checks).toBeNull();
+    expect(r.error).toMatch(/HTTP 503/);
+  });
+});
+
+describe('mapPool', () => {
+  it('preserves input order in the output', async () => {
+    expect(await mapPool([1, 2, 3, 4, 5], 2, async (n) => n * 10)).toEqual([10, 20, 30, 40, 50]);
+  });
+
+  it('never runs more than `limit` tasks at once', async () => {
+    let inFlight = 0;
+    let max = 0;
+    const out = await mapPool([1, 2, 3, 4, 5, 6, 7], 3, async (n) => {
+      inFlight++;
+      max = Math.max(max, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return n;
+    });
+    expect(max).toBeLessThanOrEqual(3);
+    expect(out).toHaveLength(7);
+  });
+
+  it('handles an empty list', async () => {
+    expect(await mapPool([], 3, async (n: number) => n)).toEqual([]);
   });
 });

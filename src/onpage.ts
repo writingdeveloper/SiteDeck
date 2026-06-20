@@ -78,8 +78,12 @@ export async function fetchOnPage(site: SiteUrl): Promise<SiteOnPage> {
   return { ...base, checks, llmsTxt, error };
 }
 
-// Run `task` over items with at most `limit` in flight at once.
-async function mapPool<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+// Run `task` over items with at most `limit` in flight at once. Exported for tests.
+export async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> {
   const out = new Array<R>(items.length);
   let next = 0;
   const worker = async (): Promise<void> => {
