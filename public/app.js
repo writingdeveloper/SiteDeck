@@ -13,7 +13,7 @@ const store = {
   set: (k, v) => { try { localStorage.setItem("sitedeck." + k, v); } catch {} },
 };
 
-const state = { data: null, insights: null, onpage: null, filter: "", sortKey: "activeUsers", sortDir: "desc" };
+const state = { data: null, insights: null, onpage: null, github: null, filter: "", sortKey: "activeUsers", sortDir: "desc" };
 
 const els = {
   period: document.getElementById("period"),
@@ -328,6 +328,7 @@ const views = {
   traffic: document.getElementById("view-traffic"),
   performance: document.getElementById("view-performance"),
   geo: document.getElementById("view-geo"),
+  repos: document.getElementById("view-repos"),
 };
 const insights = {
   status: document.getElementById("insights-status"),
@@ -542,6 +543,126 @@ async function loadOnpage(force) {
 
 geo.check.addEventListener("click", () => loadOnpage(true));
 
+// --- Repos tab: GitHub repo traffic (accumulated daily, polled while measuring) ---
+const repos = {
+  status: document.getElementById("repos-status"),
+  table: document.getElementById("repos-table"),
+  tbody: document.querySelector("#repos-table tbody"),
+  meta: document.getElementById("repos-meta"),
+  measure: document.getElementById("repos-measure"),
+};
+let reposTimer = null;
+
+function repoDetail(label, items, render) {
+  if (!items || !items.length) return "";
+  return `<div class="repo-detail"><b>${label}</b> <span class="muted">(${t("repos.last14d")})</span><ul>${items.map(render).join("")}</ul></div>`;
+}
+
+function renderRepos(data) {
+  repos.measure.disabled = Boolean(data.isMeasuring);
+  if (data.isMeasuring) repos.measure.setAttribute("aria-busy", "true");
+  else repos.measure.removeAttribute("aria-busy");
+  if (!data.configured) {
+    repos.table.hidden = true;
+    repos.tbody.innerHTML = "";
+    repos.status.hidden = false;
+    repos.status.className = "status warn";
+    repos.status.innerHTML = `${t("repos.notConfigured")} <a href="#" class="link-settings">${t("link.openSettings")}</a>`;
+    return;
+  }
+  const list = data.repos ?? [];
+  repos.table.hidden = list.length === 0;
+  repos.status.hidden = list.length > 0 && !data.isMeasuring;
+  if (data.isMeasuring) {
+    repos.status.hidden = false;
+    repos.status.className = "status info";
+    repos.status.textContent = t("repos.measuring");
+  } else if (list.length === 0) {
+    repos.status.className = "status info";
+    repos.status.textContent = t("repos.empty");
+  }
+  const rows = list
+    .filter((r) => matchesFilter(r.displayName, state.filter))
+    .map((r) => {
+      const tt = r.totals14d ?? {};
+      const detail =
+        repoDetail(t("repos.referrers"), r.referrers, (x) => `<li>${escapeHtml(x.referrer)} <span class="muted">${fmtNum(x.count)}</span></li>`) +
+        repoDetail(t("repos.paths"), r.paths, (x) => `<li>${escapeHtml(x.title || x.path)} <span class="muted">${fmtNum(x.count)}</span></li>`);
+      return `<tr class="repo-row" tabindex="0">
+        <td class="name">${siteLink(r.displayName, `https://github.com/${r.fullName}`)}</td>
+        <td class="num">${fmtNum(tt.views)}</td>
+        <td class="num">${fmtNum(tt.uniqueViews)}</td>
+        <td class="num">${fmtNum(tt.clones)}</td>
+        <td class="num">${fmtNum(tt.uniqueClones)}</td>
+        <td class="spark-cell" title="${escapeHtml(trendTip(r.trend))}">${sparkline(r.trend, `${r.displayName} ${t("col.trend")}`)}</td>
+        <td class="top">${fmtWhen(r.snapshotAt)}</td>
+      </tr>${detail ? `<tr class="repo-detail-row" hidden><td colspan="7">${detail}</td></tr>` : ""}`;
+    })
+    .join("");
+  repos.tbody.innerHTML = rows || (list.length && state.filter ? noMatchRow(7) : "");
+  repos.meta.textContent = data.lastRunAt
+    ? `${t("insights.lastMeasured", { when: fmtWhen(data.lastRunAt) })}${data.errors?.length ? t("insights.errorsSuffix", { count: data.errors.length }) : ""}`
+    : "";
+}
+
+function stopReposPolling() {
+  if (reposTimer) {
+    clearInterval(reposTimer);
+    reposTimer = null;
+  }
+}
+
+async function loadRepos() {
+  if (!repos.tbody.children.length && repos.status.hidden) {
+    repos.status.hidden = false;
+    repos.status.className = "status info";
+    repos.status.textContent = t("status.loading");
+  }
+  try {
+    const res = await fetch("/api/github");
+    const data = await res.json();
+    state.github = data;
+    renderRepos(data);
+    if (data.isMeasuring && !reposTimer) reposTimer = setInterval(loadRepos, 4000);
+    else if (!data.isMeasuring) stopReposPolling();
+  } catch (err) {
+    repos.status.hidden = false;
+    repos.status.className = "status error";
+    repos.status.textContent = escapeHtml(err?.message ?? String(err));
+  }
+}
+
+// Expand/collapse a repo row to reveal its 14-day referrers + popular paths.
+repos.tbody.addEventListener("click", (e) => {
+  const row = e.target.closest && e.target.closest(".repo-row");
+  if (!row) return;
+  const detail = row.nextElementSibling;
+  if (detail && detail.classList.contains("repo-detail-row")) detail.hidden = !detail.hidden;
+});
+repos.tbody.addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("repo-row")) {
+    e.preventDefault();
+    const detail = e.target.nextElementSibling;
+    if (detail && detail.classList.contains("repo-detail-row")) detail.hidden = !detail.hidden;
+  }
+});
+
+repos.measure.addEventListener("click", async () => {
+  repos.measure.disabled = true;
+  repos.measure.setAttribute("aria-busy", "true");
+  try {
+    const res = await fetch("/api/github/measure", { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    loadRepos();
+  } catch (err) {
+    repos.status.hidden = false;
+    repos.status.className = "status error";
+    repos.status.textContent = err?.message ?? String(err);
+    repos.measure.disabled = false;
+    repos.measure.removeAttribute("aria-busy");
+  }
+});
+
 const settings = {
   view: document.getElementById("view-settings"),
   lang: document.getElementById("lang-select"),
@@ -720,10 +841,12 @@ function activateTab(view) {
   views.traffic.hidden = view !== "traffic";
   views.performance.hidden = view !== "performance";
   views.geo.hidden = view !== "geo";
+  views.repos.hidden = view !== "repos";
   settings.view.hidden = view !== "settings";
   if (view === "performance") loadInsights();
   else stopInsightsPolling(); // don't keep polling a hidden tab
   if (view === "geo") loadOnpage();
+  if (view === "repos") loadRepos(); else stopReposPolling();
   if (view === "settings") loadSettings();
 }
 
@@ -740,6 +863,7 @@ els.search.addEventListener("input", () => {
   if (!views.traffic.hidden && state.data) render();
   if (!views.performance.hidden && state.insights) renderInsights(state.insights);
   if (!views.geo.hidden && state.onpage) renderOnpage(state.onpage);
+  if (!views.repos.hidden && state.github) renderRepos(state.github);
 });
 
 // --- CSV export of the current view ---

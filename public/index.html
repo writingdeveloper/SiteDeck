@@ -30,6 +30,7 @@
         <button class="tab active" id="tab-traffic" role="tab" aria-selected="true" aria-controls="view-traffic" data-view="traffic" type="button" data-i18n="tab.traffic">Traffic</button>
         <button class="tab" id="tab-performance" role="tab" aria-selected="false" aria-controls="view-performance" data-view="performance" type="button" data-i18n="tab.performance">Performance</button>
         <button class="tab" id="tab-geo" role="tab" aria-selected="false" aria-controls="view-geo" data-view="geo" type="button" data-i18n="tab.geo">GEO</button>
+        <button class="tab" id="tab-repos" role="tab" aria-selected="false" aria-controls="view-repos" data-view="repos" type="button" data-i18n="tab.repos">Repos</button>
         <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="view-settings" data-view="settings" type="button" data-i18n="tab.settings">Settings</button>
       </nav>
 
@@ -102,6 +103,28 @@
           <tbody></tbody>
         </table>
         <div class="meta" id="geo-meta"></div>
+      </section>
+
+      <section id="view-repos" role="tabpanel" aria-labelledby="tab-repos" hidden>
+        <div class="controls">
+          <button id="repos-measure" type="button" data-i18n="btn.measureNow">Measure now</button>
+        </div>
+        <div id="repos-status" class="status" role="status" aria-live="polite" hidden></div>
+        <table id="repos-table" hidden>
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="col.repo">Repo</th>
+              <th class="num" scope="col" data-i18n="col.views14d">Views (14d)</th>
+              <th class="num" scope="col" data-i18n="col.uniqueViews">Uniq. views</th>
+              <th class="num" scope="col" data-i18n="col.clones14d">Clones (14d)</th>
+              <th class="num" scope="col" data-i18n="col.uniqueClones">Uniq. clones</th>
+              <th scope="col" data-i18n="col.trend">Trend</th>
+              <th scope="col" data-i18n="col.updatedAt">Updated</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="meta" id="repos-meta"></div>
       </section>
 
       <section id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
