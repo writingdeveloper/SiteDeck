@@ -57,3 +57,9 @@ export const INSIGHTS_CONCURRENCY = 2;
 export const INSIGHTS_RETENTION = 90;
 export const INSIGHTS_TREND_LENGTH = 30;
 
+/** GitHub repo-traffic config (mirrors the PSI/insights constants). */
+export const GITHUB_STORE_PATH = path.join(CONFIG_DIR, 'github.json');
+export const GITHUB_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const GITHUB_RETENTION_DAYS = 90;
+export const GITHUB_CONCURRENCY = 2;
+export const GITHUB_TREND_LENGTH = 30;
