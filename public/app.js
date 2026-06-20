@@ -507,7 +507,18 @@ async function loadOnpage(force) {
   geo.check.setAttribute("aria-busy", "true");
   try {
     const res = await fetch("/api/onpage");
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
+    if (!data) throw new Error(`HTTP ${res.status}`);
+    if (data.error) {
+      // A server error (e.g. the GA Admin API failing to list sites) — show the real
+      // reason, not a misleading "connect account" prompt with a broken link.
+      geo.table.hidden = true;
+      geo.tbody.innerHTML = "";
+      geo.status.hidden = false;
+      geo.status.className = "status error";
+      geo.status.innerHTML = `${localizeError(data.error)} · <a href="/oauth/start">${t("link.reconnect")}</a>`;
+      return;
+    }
     if (!data.authenticated) {
       geo.table.hidden = true;
       geo.tbody.innerHTML = "";

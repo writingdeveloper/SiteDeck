@@ -23,7 +23,9 @@ export interface SiteOnPage {
 // handful of <meta>/<link> signals we check — not a general-purpose HTML parser.
 function attrs(tag: string): Record<string, string> {
   const out: Record<string, string> = {};
-  const re = /([a-z][a-z0-9-]*)\s*=\s*("([^"]*)"|'([^']*)'|(\S+))/gi;
+  // Unquoted values stop at whitespace, quotes, or the tag's closing '>' (so a
+  // trailing '>' is never captured into the value).
+  const re = /([a-z][a-z0-9-]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(tag))) {
     const key = m[1]?.toLowerCase();
@@ -38,14 +40,18 @@ function tagsOf(html: string, name: string): Record<string, string>[] {
 
 /** On-page SEO/GEO signals parsed from a page's HTML (no network). */
 export function parseOnPage(html: string): OnPageChecks {
-  const metas = tagsOf(html, 'meta');
-  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  // Drop commented-out markup first so a tag inside <!-- ... --> never counts.
+  const clean = html.replace(/<!--[\s\S]*?-->/g, '');
+  const metas = tagsOf(clean, 'meta');
+  const titleMatch = clean.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   return {
     title: Boolean(titleMatch?.[1]?.trim()),
     description: metas.some((m) => m.name?.toLowerCase() === 'description' && Boolean(m.content?.trim())),
-    canonical: tagsOf(html, 'link').some((l) => l.rel?.toLowerCase() === 'canonical' && Boolean(l.href)),
+    canonical: tagsOf(clean, 'link').some((l) => l.rel?.toLowerCase() === 'canonical' && Boolean(l.href)),
     openGraph: metas.some((m) => (m.property ?? '').toLowerCase().startsWith('og:')),
-    structuredData: /<script[^>]+type=["']application\/ld\+json["']/i.test(html),
+    // Attribute parse (not a raw regex) so unquoted `type=application/ld+json` is
+    // caught and a look-alike like `application/ld+json-x` is not.
+    structuredData: tagsOf(clean, 'script').some((s) => s.type?.toLowerCase() === 'application/ld+json'),
   };
 }
 

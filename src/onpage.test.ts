@@ -72,6 +72,21 @@ describe('parseOnPage', () => {
     expect(parseOnPage(`<script type='application/ld+json'>{}</script>`).structuredData).toBe(true);
     expect(parseOnPage('<script type="text/javascript"></script>').structuredData).toBe(false);
   });
+
+  it('detects JSON-LD even when the type attribute is unquoted', () => {
+    expect(parseOnPage('<script type=application/ld+json>{}</script>').structuredData).toBe(true);
+  });
+
+  it('does not treat a look-alike script type as JSON-LD', () => {
+    expect(parseOnPage('<script type="application/ld+json-x">{}</script>').structuredData).toBe(false);
+  });
+
+  it('ignores tags inside HTML comments', () => {
+    expect(parseOnPage('<!-- <title>Old</title> -->').title).toBe(false);
+    const r = parseOnPage('<!-- <meta name="description" content="x"> --><title>Real</title>');
+    expect(r.description).toBe(false);
+    expect(r.title).toBe(true);
+  });
 });
 
 const SITE = { propertyId: '1', displayName: 'X', url: 'https://x.com' };
