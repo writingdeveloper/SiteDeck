@@ -75,6 +75,20 @@ Search Console data lags ~2–3 days, so the most recent days of a short period 
 read low. This is best-effort: if the API/scope/verification isn't in place, the
 columns show `—` and the rest of the dashboard is unaffected.
 
+## On-page checks (GEO tab)
+
+The **GEO** tab audits each site's homepage for on-page SEO and AI-search readiness
+— free, no key needed. On open it fetches each homepage and checks for a non-empty
+`<title>`, a meta description, a canonical URL, Open Graph tags, **JSON-LD
+structured data**, and a **`/llms.txt`** file (the emerging AI-crawler standard),
+with an X/6 readiness score. **Check now** re-runs the audit; the URLs come from
+each GA4 property's web data stream.
+
+It reads the **served HTML**, so signals injected later by client-side JavaScript
+(common on single-page apps) can read as missing even when they're present after
+render. A homepage that fails to load shows its error inline and never blocks the
+other sites.
+
 ## Desktop app (Electron)
 
 Run it as a native desktop window instead of in the browser:
