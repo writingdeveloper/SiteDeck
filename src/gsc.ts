@@ -25,6 +25,13 @@ export function normalizeHost(input: string): string {
  * Map each GA4 property (by its web data-stream URL) to a verified GSC site.
  * Domain properties (`sc-domain:`) cover subdomains too; URL-prefix sites match
  * on the exact normalized host. Properties with no verified site are omitted.
+ *
+ * When several verified sites cover one host (e.g. a subdomain that has both its
+ * own property and a parent domain property), the most specific one wins — the
+ * longest matched domain — so a subdomain never silently reports the parent's
+ * aggregate. Remaining ties (a domain vs URL-prefix property for the same host)
+ * break alphabetically, so the choice — and thus the numbers — stay stable across
+ * refreshes instead of following the API's (unordered) site list.
  */
 export function matchSites(
   siteUrls: { propertyId: string; url: string }[],
@@ -34,12 +41,18 @@ export function matchSites(
   for (const { propertyId, url } of siteUrls) {
     const host = normalizeHost(url);
     if (!host) continue;
-    const match = gscSites.find((site) => {
+    const candidates = gscSites.filter((site) => {
       const dom = normalizeHost(site);
       if (!dom) return false;
-      return /^sc-domain:/i.test(site) ? host === dom || host.endsWith(`.${dom}`) : host === dom;
+      if (dom === host) return true;
+      return /^sc-domain:/i.test(site) && host.endsWith(`.${dom}`);
     });
-    if (match) out.set(propertyId, match);
+    if (candidates.length === 0) continue;
+    candidates.sort((a, b) => {
+      const bySpecificity = normalizeHost(b).length - normalizeHost(a).length;
+      return bySpecificity !== 0 ? bySpecificity : a < b ? -1 : a > b ? 1 : 0;
+    });
+    out.set(propertyId, candidates[0] as string);
   }
   return out;
 }

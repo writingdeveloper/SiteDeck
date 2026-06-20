@@ -65,6 +65,38 @@ describe('matchSites', () => {
   it('returns an empty map when there are no GSC sites', () => {
     expect(matchSites([{ propertyId: '8', url: 'https://e.com' }], []).size).toBe(0);
   });
+
+  it('prefers an exact host match over a covering parent domain (regardless of order)', () => {
+    const sites = ['sc-domain:example.com', 'sc-domain:zodiacly.example.com'];
+    expect(
+      matchSites([{ propertyId: '1', url: 'https://zodiacly.example.com' }], sites).get('1'),
+    ).toBe('sc-domain:zodiacly.example.com');
+    // Reversed input order must yield the same match — not whatever the API listed first.
+    expect(
+      matchSites([{ propertyId: '1', url: 'https://zodiacly.example.com' }], [...sites].reverse()).get('1'),
+    ).toBe('sc-domain:zodiacly.example.com');
+  });
+
+  it('falls back to a parent domain property only when there is no exact match', () => {
+    const m = matchSites([{ propertyId: '1', url: 'https://shop.example.com' }], ['sc-domain:example.com']);
+    expect(m.get('1')).toBe('sc-domain:example.com');
+  });
+
+  it('matches the apex GA4 url to the apex property, not a subdomain property', () => {
+    const m = matchSites(
+      [{ propertyId: '1', url: 'https://example.com' }],
+      ['sc-domain:blog.example.com', 'sc-domain:example.com'],
+    );
+    expect(m.get('1')).toBe('sc-domain:example.com');
+  });
+
+  it('breaks exact-host ties (domain vs url-prefix) the same way regardless of order', () => {
+    const sites = ['sc-domain:x.com', 'https://x.com/'];
+    const a = matchSites([{ propertyId: '1', url: 'https://x.com' }], sites).get('1');
+    const b = matchSites([{ propertyId: '1', url: 'https://x.com' }], [...sites].reverse()).get('1');
+    expect(a).toBeDefined();
+    expect(a).toBe(b);
+  });
 });
 
 describe('parseGscSites', () => {
