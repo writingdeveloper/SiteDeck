@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { OAuth2Client, type Credentials } from 'google-auth-library';
-import { CREDENTIALS_PATH, GA_SCOPES, TOKEN_PATH } from './config';
+import { CREDENTIALS_PATH, OAUTH_SCOPES, TOKEN_PATH } from './config';
 import { AppError } from './errors';
 import { writeJsonAtomic } from './atomic';
 
@@ -93,8 +93,14 @@ export function getAuthUrl(c: OAuth2Client, redirectUri: string): string {
     redirect_uri: redirectUri,
     access_type: 'offline',
     prompt: 'consent',
-    scope: GA_SCOPES,
+    scope: OAUTH_SCOPES,
   });
+}
+
+/** Scopes the cached token was actually granted (from the OAuth token response). */
+export async function grantedScopes(): Promise<string[]> {
+  const c = await getClient();
+  return (c.credentials?.scope ?? '').split(/\s+/).filter(Boolean);
 }
 
 export async function handleCallback(code: string, redirectUri: string): Promise<void> {

@@ -25,6 +25,8 @@ export interface SiteSummary {
   trend: number[];
   topPage: string | null;
   topSource: string | null;
+  /** Search Console metrics for the matched verified site; null when none/ungranted. */
+  search: SearchMetrics | null;
 }
 
 /**

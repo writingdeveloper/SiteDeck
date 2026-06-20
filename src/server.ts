@@ -3,13 +3,28 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import open from 'open';
-import { OAUTH_CALLBACK_PATH, PERIODS, PORT, type Period } from './config';
-import { credentialsStatus, getAuthUrl, getClient, handleCallback, isAuthenticated } from './auth';
+import { OAUTH_CALLBACK_PATH, PERIODS, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
+import {
+  credentialsStatus,
+  getAuthUrl,
+  getClient,
+  grantedScopes,
+  handleCallback,
+  isAuthenticated,
+} from './auth';
 import { AppError } from './errors';
 import { getSettings, updateSettings, type Settings } from './settings';
 import { tServer } from './i18n';
 import { comparisonRanges } from './periods';
-import { fetchAiSessions, fetchDailySeries, fetchRange, fetchTopValue, listProperties } from './ga';
+import {
+  fetchAiSessions,
+  fetchDailySeries,
+  fetchRange,
+  fetchTopValue,
+  listProperties,
+  listSiteUrls,
+} from './ga';
+import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import { listenWithFallback } from './listen';
@@ -73,15 +88,26 @@ async function buildSummary(period: Period): Promise<{
   errors: SummaryError[];
 }> {
   const auth = await getClient();
-  const props = await listProperties(auth);
   const ranges = comparisonRanges(period);
   const errors: SummaryError[] = [];
+
+  // GA4 properties (the dashboard rows) plus, in parallel, what's needed to attach
+  // Search Console data: each property's site URL and the user's verified GSC sites.
+  // GSC is best-effort — if the scope wasn't granted (older token) or a call fails,
+  // we fall back to no search data rather than failing the whole summary.
+  const [props, siteUrls, gscSites] = await Promise.all([
+    listProperties(auth),
+    listSiteUrls(auth).catch(() => []),
+    listGscSites(auth).catch(() => []),
+  ]);
+  const gscMatch = matchSites(siteUrls, gscSites);
 
   const sites = (
     await Promise.all(
       props.map(async (p): Promise<SiteSummary | null> => {
         try {
-          const [cur, prev, topPage, topSource, trend, aiCur, aiPrev] = await Promise.all([
+          const gscSiteUrl = gscMatch.get(p.propertyId);
+          const [cur, prev, topPage, topSource, trend, aiCur, aiPrev, search] = await Promise.all([
             fetchRange(auth, p.propertyId, ranges.current),
             fetchRange(auth, p.propertyId, ranges.previous),
             fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
@@ -89,6 +115,9 @@ async function buildSummary(period: Period): Promise<{
             fetchDailySeries(auth, p.propertyId, ranges.current),
             fetchAiSessions(auth, p.propertyId, ranges.current),
             fetchAiSessions(auth, p.propertyId, ranges.previous),
+            gscSiteUrl
+              ? fetchSearchMetrics(auth, gscSiteUrl, ranges.current).catch(() => null)
+              : Promise.resolve(null),
           ]);
           return {
             propertyId: p.propertyId,
@@ -100,6 +129,7 @@ async function buildSummary(period: Period): Promise<{
             trend,
             topPage,
             topSource,
+            search,
           };
         } catch (err) {
           errors.push({
@@ -252,12 +282,26 @@ const server = http.createServer(async (req, res) => {
     // Actually parse the credentials file, not just existsSync — so a malformed /
     // wrong (non-Desktop) credentials.json reports "invalid", not a false "found".
     const credStatus = await credentialsStatus();
+    // Search Console state: 'reconnect' when authenticated on an older token that
+    // predates the webmasters scope, 'granted' once the scope is present, else
+    // 'unavailable' (not connected yet — the normal connect flow covers it).
+    let searchConsole: 'granted' | 'reconnect' | 'unavailable' = 'unavailable';
+    try {
+      if (credStatus === 'valid' && (await isAuthenticated())) {
+        searchConsole = (await grantedScopes()).includes(SEARCH_CONSOLE_SCOPE)
+          ? 'granted'
+          : 'reconnect';
+      }
+    } catch {
+      searchConsole = 'unavailable';
+    }
     json(res, 200, {
       language: s.language ?? null,
       hasPsiKey: Boolean(s.psiApiKey),
       psiKeyMasked: s.psiApiKey ? `${s.psiApiKey.slice(0, 6)}…${s.psiApiKey.slice(-4)}` : null,
       hasCredentials: credStatus === 'valid',
       credentialsStatus: credStatus,
+      searchConsole,
     });
     return;
   }

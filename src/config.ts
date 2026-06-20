@@ -12,7 +12,13 @@ export const PORT = Number(process.env.PORT ?? 4317);
  * Read-only Analytics scope. Covers both the Admin API
  * (accountSummaries.list) and the Data API (runReport).
  */
-export const GA_SCOPES = ['https://www.googleapis.com/auth/analytics.readonly'];
+export const ANALYTICS_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
+
+/** Read-only Search Console scope (sites.list + searchAnalytics.query). */
+export const SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
+
+/** All OAuth scopes requested at consent: Analytics + Search Console. */
+export const OAUTH_SCOPES = [ANALYTICS_SCOPE, SEARCH_CONSOLE_SCOPE];
 
 /** Local-only directory + refresh/access token cache. Never committed. */
 export const CONFIG_DIR = path.join(os.homedir(), `.${APP_NAME}`);
