@@ -567,17 +567,18 @@ function renderRepos(data) {
     repos.tbody.innerHTML = "";
     repos.status.hidden = false;
     repos.status.className = "status warn";
-    repos.status.innerHTML = `${t("repos.notConfigured")} <a href="#" class="link-settings">${t("link.openSettings")}</a>`;
+    repos.status.textContent = t("repos.notConfigured");
     return;
   }
   const list = data.repos ?? [];
-  repos.table.hidden = list.length === 0;
-  repos.status.hidden = list.length > 0 && !data.isMeasuring;
+  const errs = data.errors ?? [];
+  repos.table.hidden = list.length === 0 && errs.length === 0;
+  repos.status.hidden = (list.length > 0 || errs.length > 0) && !data.isMeasuring;
   if (data.isMeasuring) {
     repos.status.hidden = false;
     repos.status.className = "status info";
     repos.status.textContent = t("repos.measuring");
-  } else if (list.length === 0) {
+  } else if (list.length === 0 && errs.length === 0) {
     repos.status.className = "status info";
     repos.status.textContent = t("repos.empty");
   }
@@ -599,7 +600,11 @@ function renderRepos(data) {
       </tr>${detail ? `<tr class="repo-detail-row" hidden><td colspan="7">${detail}</td></tr>` : ""}`;
     })
     .join("");
-  repos.tbody.innerHTML = rows || (list.length && state.filter ? noMatchRow(7) : "");
+  const errorRows = errs
+    .filter((e) => matchesFilter(e.repo, state.filter))
+    .map((e) => `<tr><td class="name">${escapeHtml(e.repo)}</td><td colspan="6" class="empty">${escapeHtml(e.message)}</td></tr>`)
+    .join("");
+  repos.tbody.innerHTML = rows + errorRows || ((list.length || errs.length) && state.filter ? noMatchRow(7) : "");
   repos.meta.textContent = data.lastRunAt
     ? `${t("insights.lastMeasured", { when: fmtWhen(data.lastRunAt) })}${data.errors?.length ? t("insights.errorsSuffix", { count: data.errors.length }) : ""}`
     : "";
@@ -634,6 +639,7 @@ async function loadRepos() {
 
 // Expand/collapse a repo row to reveal its 14-day referrers + popular paths.
 repos.tbody.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("a")) return;
   const row = e.target.closest && e.target.closest(".repo-row");
   if (!row) return;
   const detail = row.nextElementSibling;
