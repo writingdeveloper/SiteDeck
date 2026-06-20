@@ -58,6 +58,14 @@
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   },
+  "overrides": {
+    "node-gyp": {
+      "undici": "6.27.0"
+    },
+    "@electron/get": {
+      "undici": "7.28.0"
+    }
+  },
   "build": {
     "appId": "com.sitedeck.app",
     "productName": "SiteDeck",
