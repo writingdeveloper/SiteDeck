@@ -26,7 +26,7 @@ npm install
 ## Google Cloud setup (one-time, ~5 min)
 
 1. Create a new project in the [Google Cloud Console](https://console.cloud.google.com).
-2. Enable the **Google Analytics Admin API** and **Google Analytics Data API**.
+2. Enable the **Google Analytics Admin API**, **Google Analytics Data API**, and **Google Search Console API**.
 3. Configure the OAuth consent screen: **External**, and add yourself as a **test user**.
 4. Create credentials → **OAuth client ID** → **Desktop app** → download the JSON.
 5. Save it as `credentials.json` in **`~/.sitedeck/`** (create the folder if it doesn't exist; git-ignored). See [`credentials.json.example`](credentials.json.example) for the format. _(When running from source, a `credentials.json` in the project root is also picked up.)_
@@ -56,6 +56,24 @@ To enable it, add a PageSpeed Insights API key:
    { "psiApiKey": "YOUR_API_KEY" }
    ```
    (or set the `SITEDECK_PSI_KEY` environment variable).
+
+## Search (Search Console)
+
+The **Traffic** tab shows each site's Google Search performance — **Impressions**,
+**Clicks**, and **average Position** — pulled from Search Console over the selected
+period. It reuses the same Google sign-in (no extra key), so all it needs is:
+
+1. The **Google Search Console API** enabled in your GCP project (setup step 2 above).
+2. The Search Console scope granted. New sign-ins request it automatically; if you
+   upgraded from an older version, **Settings → Reconnect** grants it once.
+3. The site verified in [Search Console](https://search.google.com/search-console).
+   A **Domain** property (`sc-domain:example.com`) also covers its subdomains; a
+   URL-prefix property matches that exact host. Properties without a matching
+   verified site simply show `—`.
+
+Search Console data lags ~2–3 days, so the most recent days of a short period may
+read low. This is best-effort: if the API/scope/verification isn't in place, the
+columns show `—` and the rest of the dashboard is unaffected.
 
 ## Desktop app (Electron)
 
