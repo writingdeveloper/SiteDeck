@@ -28,6 +28,12 @@ import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
 import { getOnPageReport } from './onpage';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
+import {
+  getGithubState,
+  initGithub,
+  measureNow as measureGithubNow,
+  startGithubScheduler,
+} from './github-runner';
 import { listenWithFallback } from './listen';
 import { escapeHtml } from './html';
 
@@ -295,6 +301,24 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/github') {
+    try {
+      json(res, 200, getGithubState());
+    } catch (err) {
+      json(res, 500, errorBody(err));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/github/measure' && req.method === 'POST') {
+    try {
+      json(res, 200, measureGithubNow());
+    } catch (err) {
+      json(res, 500, errorBody(err));
+    }
+    return;
+  }
+
   if (url.pathname === '/api/settings' && req.method === 'GET') {
     const s = await getSettings();
     // Actually parse the credentials file, not just existsSync — so a malformed /
@@ -394,6 +418,9 @@ listenWithFallback(server, PORT, 10, '127.0.0.1')
     void initInsights()
       .then(startInsightsScheduler)
       .catch((err) => console.error('insights init failed:', err));
+    void initGithub()
+      .then(startGithubScheduler)
+      .catch((err) => console.error('github init failed:', err));
     if (!process.env.SITEDECK_NO_OPEN) {
       // 127.0.0.1 (not localhost) to match the loopback bind even when localhost
       // resolves to ::1.
