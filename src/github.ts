@@ -61,3 +61,31 @@ export function parsePaths(body: unknown): PathStat[] {
     .map((p) => ({ path: String(p?.path ?? ''), title: String(p?.title ?? ''), count: Number(p?.count ?? 0), uniques: Number(p?.uniques ?? 0) }))
     .filter((p) => p.path);
 }
+
+const API = 'https://api.github.com';
+
+async function ghRequest(token: string, url: string): Promise<unknown> {
+  const res = await fetch(url, {
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+      'user-agent': 'SiteDeck',
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`GitHub ${res.status} ${res.statusText} for ${url}`);
+  return res.json();
+}
+
+/** All four traffic endpoints for one repo. Requires the PAT's Administration: Read. */
+export async function fetchRepoTraffic(token: string, owner: string, repo: string): Promise<RepoTraffic> {
+  const base = `${API}/repos/${owner}/${repo}/traffic`;
+  const [views, clones, referrers, paths] = await Promise.all([
+    ghRequest(token, `${base}/views?per=day`),
+    ghRequest(token, `${base}/clones?per=day`),
+    ghRequest(token, `${base}/popular/referrers`),
+    ghRequest(token, `${base}/popular/paths`),
+  ]);
+  return { views: parseViews(views), clones: parseClones(clones), referrers: parseReferrers(referrers), paths: parsePaths(paths) };
+}
