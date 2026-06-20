@@ -6,6 +6,14 @@ export interface MetricDelta {
   deltaPct: number | null;
 }
 
+/** Google Search Console metrics for a property's matched verified site. */
+export interface SearchMetrics {
+  clicks: number;
+  impressions: number;
+  /** Average position (1 = top of results). 0 when there were no impressions. */
+  position: number;
+}
+
 export interface SiteSummary {
   propertyId: string;
   displayName: string;
