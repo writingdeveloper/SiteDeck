@@ -25,6 +25,7 @@ import {
   listSiteUrls,
 } from './ga';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
+import { getOnPageReport } from './onpage';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import { listenWithFallback } from './listen';
@@ -249,6 +250,23 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       json(res, 200, await buildSummary(period));
+    } catch (err) {
+      if (isReauthError(err)) {
+        json(res, 200, { authenticated: false, authUrl: '/oauth/start', reason: 'reauth_required' });
+        return;
+      }
+      json(res, 500, errorBody(err));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/onpage') {
+    try {
+      if (!(await isAuthenticated())) {
+        json(res, 200, { authenticated: false, authUrl: '/oauth/start' });
+        return;
+      }
+      json(res, 200, { authenticated: true, ...(await getOnPageReport(await getClient())) });
     } catch (err) {
       if (isReauthError(err)) {
         json(res, 200, { authenticated: false, authUrl: '/oauth/start', reason: 'reauth_required' });
