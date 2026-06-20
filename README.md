@@ -89,6 +89,30 @@ It reads the **served HTML**, so signals injected later by client-side JavaScrip
 render. A homepage that fails to load shows its error inline and never blocks the
 other sites.
 
+## GitHub traffic (Repos tab)
+
+The **Repos** tab tracks each configured GitHub repository's traffic — **views**,
+**unique views**, **clones**, **unique clones** (14-day totals + a daily trend),
+plus its top **referrers** and **popular paths** (expand a row). GitHub's traffic
+API only returns the **trailing 14 days**, so SiteDeck snapshots it once a day into
+`~/.sitedeck/github.json` (keyed by calendar date, retention 90 days) to keep
+history — and **backfills** any missed days on the next launch. Offline for **more
+than 14 consecutive days** leaves a permanent gap.
+
+To enable it, create a **fine-grained personal access token** (github.com →
+Settings → Developer settings → Fine-grained tokens): grant access to the repos you
+want, with **Repository permissions → Administration: Read-only** (the permission
+the traffic API requires). Then add it to `~/.sitedeck/config.json` (never commit it):
+
+```json
+{ "psiApiKey": "…", "githubToken": "github_pat_…", "githubRepos": ["writingdeveloper/SiteDeck"] }
+```
+
+(Env overrides `SITEDECK_GITHUB_TOKEN` / `SITEDECK_GITHUB_REPOS` mirror the PSI key.)
+Measured automatically once a day while the app runs, plus a manual **측정** (measure
+now) button. With no token the tab shows the setup hint; a repo the token can't read
+shows an error and the others continue.
+
 ## Desktop app (Electron)
 
 Run it as a native desktop window instead of in the browser:
