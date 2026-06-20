@@ -13,7 +13,7 @@ const store = {
   set: (k, v) => { try { localStorage.setItem("sitedeck." + k, v); } catch {} },
 };
 
-const state = { data: null, insights: null, filter: "", sortKey: "activeUsers", sortDir: "desc" };
+const state = { data: null, insights: null, onpage: null, filter: "", sortKey: "activeUsers", sortDir: "desc" };
 
 const els = {
   period: document.getElementById("period"),
@@ -327,6 +327,7 @@ const tabs = document.querySelectorAll(".tab");
 const views = {
   traffic: document.getElementById("view-traffic"),
   performance: document.getElementById("view-performance"),
+  geo: document.getElementById("view-geo"),
 };
 const insights = {
   status: document.getElementById("insights-status"),
@@ -442,6 +443,93 @@ insights.measure.addEventListener("click", async () => {
     insights.measure.removeAttribute("aria-busy");
   }
 });
+
+// --- GEO tab: on-page SEO / AI-readiness checks (on-demand, stateless) ---
+const geo = {
+  status: document.getElementById("geo-status"),
+  table: document.getElementById("geo-table"),
+  tbody: document.querySelector("#geo-table tbody"),
+  meta: document.getElementById("geo-meta"),
+  check: document.getElementById("geo-check"),
+};
+
+function checkCell(ok) {
+  return `<span class="score ${ok ? "good" : "poor"}">${ok ? "✓" : "✗"}</span>`;
+}
+
+function geoScore(s) {
+  const c = s.checks;
+  return [c.title, c.description, c.canonical, c.openGraph, c.structuredData, s.llmsTxt].filter(Boolean).length;
+}
+
+function geoScoreCell(n) {
+  const cls = n >= 5 ? "good" : n >= 3 ? "avg" : "poor";
+  return `<span class="score ${cls}">${n}/6</span>`;
+}
+
+function renderOnpage(data) {
+  const sites = data?.sites ?? [];
+  geo.table.hidden = sites.length === 0;
+  const rows = sites
+    .filter((s) => matchesFilter(s.displayName, state.filter))
+    .map((s) => {
+      if (!s.checks) {
+        return `<tr><td class="name">${siteLink(s.displayName, s.url || null)}</td><td colspan="7" class="empty">${escapeHtml(s.error || "—")}</td></tr>`;
+      }
+      const c = s.checks;
+      return `<tr>
+        <td class="name">${siteLink(s.displayName, s.url || null)}</td>
+        <td class="num">${checkCell(c.title)}</td>
+        <td class="num">${checkCell(c.description)}</td>
+        <td class="num">${checkCell(c.canonical)}</td>
+        <td class="num">${checkCell(c.openGraph)}</td>
+        <td class="num">${checkCell(c.structuredData)}</td>
+        <td class="num">${checkCell(s.llmsTxt)}</td>
+        <td class="num">${geoScoreCell(geoScore(s))}</td>
+      </tr>`;
+    })
+    .join("");
+  geo.tbody.innerHTML = rows || (sites.length && state.filter ? noMatchRow(8) : "");
+  geo.meta.textContent = data?.generatedAt ? t("insights.lastMeasured", { when: fmtWhen(data.generatedAt) }) : "";
+}
+
+async function loadOnpage(force) {
+  // Stateless + on-demand: reuse the cached result across tab switches; only the
+  // explicit "Check now" button (force) re-fetches every homepage.
+  if (state.onpage && !force) {
+    renderOnpage(state.onpage);
+    return;
+  }
+  geo.status.hidden = false;
+  geo.status.className = "status info";
+  geo.status.textContent = t("status.loading");
+  geo.check.disabled = true;
+  geo.check.setAttribute("aria-busy", "true");
+  try {
+    const res = await fetch("/api/onpage");
+    const data = await res.json();
+    if (!data.authenticated) {
+      geo.table.hidden = true;
+      geo.tbody.innerHTML = "";
+      geo.status.hidden = false;
+      geo.status.className = "status warn";
+      geo.status.innerHTML = `${t("status.needAuth")} <a href="${data.authUrl}">${t("link.connectAccount")}</a>`;
+      return;
+    }
+    state.onpage = data;
+    geo.status.hidden = true;
+    renderOnpage(data);
+  } catch (err) {
+    geo.status.hidden = false;
+    geo.status.className = "status error";
+    geo.status.textContent = escapeHtml(err?.message ?? String(err));
+  } finally {
+    geo.check.disabled = false;
+    geo.check.removeAttribute("aria-busy");
+  }
+}
+
+geo.check.addEventListener("click", () => loadOnpage(true));
 
 const settings = {
   view: document.getElementById("view-settings"),
@@ -620,9 +708,11 @@ function activateTab(view) {
   });
   views.traffic.hidden = view !== "traffic";
   views.performance.hidden = view !== "performance";
+  views.geo.hidden = view !== "geo";
   settings.view.hidden = view !== "settings";
   if (view === "performance") loadInsights();
   else stopInsightsPolling(); // don't keep polling a hidden tab
+  if (view === "geo") loadOnpage();
   if (view === "settings") loadSettings();
 }
 
@@ -638,6 +728,7 @@ els.search.addEventListener("input", () => {
   state.filter = els.search.value;
   if (!views.traffic.hidden && state.data) render();
   if (!views.performance.hidden && state.insights) renderInsights(state.insights);
+  if (!views.geo.hidden && state.onpage) renderOnpage(state.onpage);
 });
 
 // --- CSV export of the current view ---
@@ -675,6 +766,17 @@ els.export.addEventListener("click", () => {
         return [s.displayName, l.performance ?? "", l.accessibility ?? "", l.bestPractices ?? "", l.seo ?? "", l.lcpMs ?? "", l.cls ?? "", l.inpMs ?? "", l.ts ?? ""];
       });
     downloadCsv("sitedeck-performance.csv", toCsv(headers, rows));
+  } else if (!views.geo.hidden && state.onpage) {
+    const headers = [t("col.site"), t("col.title"), t("col.description"), t("col.canonical"), t("col.openGraph"), t("col.structuredData"), t("col.llmsTxt"), t("col.geoScore")];
+    const rows = (state.onpage.sites ?? [])
+      .filter((s) => matchesFilter(s.displayName, state.filter))
+      .map((s) => {
+        const c = s.checks;
+        if (!c) return [s.displayName, "", "", "", "", "", "", ""];
+        const n = (v) => (v ? 1 : 0);
+        return [s.displayName, n(c.title), n(c.description), n(c.canonical), n(c.openGraph), n(c.structuredData), n(s.llmsTxt), geoScore(s)];
+      });
+    downloadCsv("sitedeck-geo.csv", toCsv(headers, rows));
   }
 });
 

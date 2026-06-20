@@ -29,6 +29,7 @@
       <nav class="tabs" role="tablist">
         <button class="tab active" id="tab-traffic" role="tab" aria-selected="true" aria-controls="view-traffic" data-view="traffic" type="button" data-i18n="tab.traffic">Traffic</button>
         <button class="tab" id="tab-performance" role="tab" aria-selected="false" aria-controls="view-performance" data-view="performance" type="button" data-i18n="tab.performance">Performance</button>
+        <button class="tab" id="tab-geo" role="tab" aria-selected="false" aria-controls="view-geo" data-view="geo" type="button" data-i18n="tab.geo">GEO</button>
         <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="view-settings" data-view="settings" type="button" data-i18n="tab.settings">Settings</button>
       </nav>
 
@@ -78,6 +79,29 @@
           <tbody></tbody>
         </table>
         <div class="meta" id="insights-meta"></div>
+      </section>
+
+      <section id="view-geo" role="tabpanel" aria-labelledby="tab-geo" hidden>
+        <div class="controls">
+          <button id="geo-check" type="button" data-i18n="btn.checkNow">Check now</button>
+        </div>
+        <div id="geo-status" class="status" role="status" aria-live="polite" hidden></div>
+        <table id="geo-table" hidden>
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="col.site">Site</th>
+              <th class="num" scope="col" title="Has a non-empty &lt;title&gt;" data-i18n="col.title">Title</th>
+              <th class="num" scope="col" title="Has a meta description" data-i18n="col.description">Desc</th>
+              <th class="num" scope="col" title="Has a canonical URL" data-i18n="col.canonical">Canon</th>
+              <th class="num" scope="col" title="Has Open Graph tags (social/AI previews)" data-i18n="col.openGraph">OG</th>
+              <th class="num" scope="col" title="Has JSON-LD structured data (rich results + AI engines)" data-i18n="col.structuredData">JSON-LD</th>
+              <th class="num" scope="col" title="Serves /llms.txt (AI-crawler guidance)" data-i18n="col.llmsTxt">llms.txt</th>
+              <th class="num" scope="col" data-i18n="col.geoScore">Score</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="meta" id="geo-meta"></div>
       </section>
 
       <section id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
