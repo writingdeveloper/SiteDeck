@@ -9,6 +9,8 @@ export type Language = (typeof LANGUAGES)[number];
 export interface Settings {
   language?: Language;
   psiApiKey?: string;
+  githubToken?: string;
+  githubRepos?: string[];
 }
 
 export function isLanguage(value: unknown): value is Language {
@@ -23,6 +25,16 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
     const trimmed = patch.psiApiKey.trim();
     if (trimmed) next.psiApiKey = trimmed;
     else delete next.psiApiKey;
+  }
+  if (patch.githubToken !== undefined) {
+    const trimmed = patch.githubToken.trim();
+    if (trimmed) next.githubToken = trimmed;
+    else delete next.githubToken;
+  }
+  if (patch.githubRepos !== undefined && Array.isArray(patch.githubRepos)) {
+    const repos = patch.githubRepos.filter((r): r is string => typeof r === 'string' && r.trim().length > 0).map((r) => r.trim());
+    if (repos.length) next.githubRepos = repos;
+    else delete next.githubRepos;
   }
   return next;
 }
@@ -51,5 +63,28 @@ export function getPsiApiKey(): string | null {
     return typeof cfg.psiApiKey === 'string' && cfg.psiApiKey ? cfg.psiApiKey : null;
   } catch {
     return null;
+  }
+}
+
+/** GitHub PAT: SITEDECK_GITHUB_TOKEN env, else githubToken in config.json, else null. */
+export function getGithubToken(): string | null {
+  if (process.env.SITEDECK_GITHUB_TOKEN) return process.env.SITEDECK_GITHUB_TOKEN;
+  try {
+    const cfg = JSON.parse(readFileSync(CONFIG_JSON_PATH, 'utf8')) as { githubToken?: unknown };
+    return typeof cfg.githubToken === 'string' && cfg.githubToken ? cfg.githubToken : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Repo list: SITEDECK_GITHUB_REPOS (comma-separated) env, else githubRepos in config.json, else []. */
+export function getGithubRepos(): string[] {
+  const env = process.env.SITEDECK_GITHUB_REPOS;
+  if (env) return env.split(',').map((s) => s.trim()).filter(Boolean);
+  try {
+    const cfg = JSON.parse(readFileSync(CONFIG_JSON_PATH, 'utf8')) as { githubRepos?: unknown };
+    return Array.isArray(cfg.githubRepos) ? cfg.githubRepos.filter((r): r is string => typeof r === 'string' && r.length > 0) : [];
+  } catch {
+    return [];
   }
 }
