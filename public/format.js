@@ -70,3 +70,19 @@ export function relTime(fromMs, nowMs, locale, justNowLabel = "just now") {
   if (diffHr < 24) return rtf.format(-diffHr, "hour");
   return rtf.format(-Math.round(diffHr / 24), "day");
 }
+
+/** Numeric sort value for a site under the active column. Search columns read from
+ *  s.search; for average position, a site with no impressions sorts last via Infinity.
+ *  Every other column is a MetricDelta with a .current. */
+export function sortValue(s, key) {
+  if (key === "searchImpressions") return s.search?.impressions ?? 0;
+  if (key === "searchClicks") return s.search?.clicks ?? 0;
+  if (key === "searchPosition") return s.search && s.search.impressions > 0 ? s.search.position : Infinity;
+  return s[key]?.current ?? 0;
+}
+
+/** Count how many of the 6 GEO/on-page signals are true for a site. */
+export function geoScore(s) {
+  const c = s.checks;
+  return [c.title, c.description, c.canonical, c.openGraph, c.structuredData, s.llmsTxt].filter(Boolean).length;
+}

@@ -108,5 +108,15 @@
   "oauth.success": "已认证。正在返回仪表盘…",
   "oauth.failed": "认证失败：{detail}",
   "oauth.tokenFailed": "令牌交换失败：{detail}",
-  "oauth.noCode": "无授权码"
+  "oauth.noCode": "无授权码",
+  "tip.aiTraffic": "AI 助手引荐 — ChatGPT、Perplexity、Gemini、Copilot 等",
+  "tip.searchImpressions": "Search Console 曝光次数（Google 搜索）",
+  "tip.searchClicks": "Search Console 点击次数（Google 搜索）",
+  "tip.searchPosition": "Search Console 平均排名 — 越低越好",
+  "tip.title": "有非空的 <title> 标签",
+  "tip.description": "有 meta description",
+  "tip.canonical": "有 canonical URL",
+  "tip.openGraph": "有 Open Graph 标签（社交/AI 预览）",
+  "tip.structuredData": "有 JSON-LD 结构化数据（精选摘要 + AI 引擎）",
+  "tip.llmsTxt": "提供 /llms.txt（AI 爬虫指引）"
 }

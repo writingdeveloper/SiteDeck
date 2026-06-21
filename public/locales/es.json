@@ -108,5 +108,15 @@
   "oauth.success": "Autenticado. Volviendo al panel…",
   "oauth.failed": "Error de autenticación: {detail}",
   "oauth.tokenFailed": "Error al intercambiar token: {detail}",
-  "oauth.noCode": "sin código"
+  "oauth.noCode": "sin código",
+  "tip.aiTraffic": "Referencias de asistentes IA — ChatGPT, Perplexity, Gemini, Copilot…",
+  "tip.searchImpressions": "Impresiones de Search Console (Google Search)",
+  "tip.searchClicks": "Clics de Search Console (Google Search)",
+  "tip.searchPosition": "Posición media de Search Console — cuanto más baja, mejor",
+  "tip.title": "Tiene un <title> no vacío",
+  "tip.description": "Tiene una meta descripción",
+  "tip.canonical": "Tiene una URL canónica",
+  "tip.openGraph": "Tiene etiquetas Open Graph (vistas previas sociales/IA)",
+  "tip.structuredData": "Tiene datos estructurados JSON-LD (resultados enriquecidos + motores IA)",
+  "tip.llmsTxt": "Sirve /llms.txt (guía para rastreadores de IA)"
 }

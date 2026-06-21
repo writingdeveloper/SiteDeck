@@ -1,6 +1,7 @@
 import net from 'node:net';
 import type { OAuth2Client } from 'google-auth-library';
 import { listSiteUrls, type SiteUrl } from './ga';
+import { ONPAGE_CONCURRENCY, ONPAGE_TIMEOUT_MS, ONPAGE_LLMS_TIMEOUT_MS } from './config';
 
 export interface OnPageChecks {
   title: boolean;
@@ -104,7 +105,7 @@ export async function fetchOnPage(site: SiteUrl): Promise<SiteOnPage> {
   let checks: OnPageChecks | null = null;
   let error: string | null = null;
   try {
-    const res = await fetchGuarded(site.url, 8000);
+    const res = await fetchGuarded(site.url, ONPAGE_TIMEOUT_MS);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     checks = parseOnPage(await res.text());
   } catch (e) {
@@ -112,7 +113,7 @@ export async function fetchOnPage(site: SiteUrl): Promise<SiteOnPage> {
   }
   let llmsTxt = false;
   try {
-    llmsTxt = (await fetchGuarded(new URL('/llms.txt', site.url).href, 6000)).ok;
+    llmsTxt = (await fetchGuarded(new URL('/llms.txt', site.url).href, ONPAGE_LLMS_TIMEOUT_MS)).ok;
   } catch {
     llmsTxt = false;
   }
@@ -142,6 +143,6 @@ export async function getOnPageReport(
   auth: OAuth2Client,
 ): Promise<{ generatedAt: string; sites: SiteOnPage[] }> {
   const urls = await listSiteUrls(auth);
-  const sites = await mapPool(urls, 5, fetchOnPage);
+  const sites = await mapPool(urls, ONPAGE_CONCURRENCY, fetchOnPage);
   return { generatedAt: new Date().toISOString(), sites };
 }

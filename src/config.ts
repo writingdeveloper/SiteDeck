@@ -70,3 +70,8 @@ export const GITHUB_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export const GITHUB_RETENTION_DAYS = 90;
 export const GITHUB_CONCURRENCY = 2;
 export const GITHUB_TREND_LENGTH = 30;
+
+/** On-page check concurrency and per-request timeouts (ms). */
+export const ONPAGE_CONCURRENCY = 5;
+export const ONPAGE_TIMEOUT_MS = 8000;
+export const ONPAGE_LLMS_TIMEOUT_MS = 6000;

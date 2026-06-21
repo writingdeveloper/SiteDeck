@@ -152,7 +152,7 @@ export async function loadStore(filePath: string): Promise<GithubStore> {
     if (parsed && typeof parsed === 'object' && parsed.byRepo) return parsed;
     throw new Error('bad shape');
   } catch {
-    await rename(filePath, `${filePath}.bak`).catch(() => {});
+    await rename(filePath, `${filePath}.${Date.now()}.bak`).catch(() => {});
     return emptyStore();
   }
 }

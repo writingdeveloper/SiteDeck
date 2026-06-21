@@ -108,5 +108,15 @@
   "oauth.success": "認証完了。ダッシュボードに戻ります…",
   "oauth.failed": "認証に失敗しました: {detail}",
   "oauth.tokenFailed": "トークン交換に失敗しました: {detail}",
-  "oauth.noCode": "コードなし"
+  "oauth.noCode": "コードなし",
+  "tip.aiTraffic": "AI アシスタントからの流入 — ChatGPT、Perplexity、Gemini、Copilot など",
+  "tip.searchImpressions": "Search Console の表示回数（Google 検索）",
+  "tip.searchClicks": "Search Console のクリック数（Google 検索）",
+  "tip.searchPosition": "Search Console の平均掲載順位 — 低いほど良い",
+  "tip.title": "空でない <title> タグがある",
+  "tip.description": "meta description がある",
+  "tip.canonical": "canonical URL がある",
+  "tip.openGraph": "Open Graph タグがある（SNS/AI プレビュー）",
+  "tip.structuredData": "JSON-LD 構造化データがある（リッチリザルト + AI エンジン）",
+  "tip.llmsTxt": "/llms.txt を提供している（AI クローラー向けガイダンス）"
 }

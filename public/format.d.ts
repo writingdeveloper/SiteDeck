@@ -7,3 +7,5 @@ export function relTime(fromMs: number, nowMs: number, locale: string, justNowLa
 export function resolveTheme(setting: unknown, prefersLight: boolean): "light" | "dark";
 export function cwvRating(value: number | null | undefined, kind: string): "good" | "avg" | "poor" | "na";
 export function cwvText(value: number | null | undefined, kind: string): string;
+export function sortValue(s: Record<string, unknown>, key: string): number;
+export function geoScore(s: { checks: Record<string, boolean>; llmsTxt: boolean }): number;

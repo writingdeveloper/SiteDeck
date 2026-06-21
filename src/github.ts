@@ -29,6 +29,8 @@ export interface RepoTraffic {
   paths: PathStat[];
 }
 
+function num(v: unknown): number { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
 function rows(body: unknown, key: string): { timestamp?: unknown; count?: unknown; uniques?: unknown }[] {
   const arr = (body as Record<string, unknown> | null)?.[key];
   return Array.isArray(arr) ? (arr as { timestamp?: unknown; count?: unknown; uniques?: unknown }[]) : [];
@@ -38,27 +40,27 @@ function rows(body: unknown, key: string): { timestamp?: unknown; count?: unknow
 export function parseViews(body: unknown): DayViews[] {
   return rows(body, 'views')
     .filter((r) => typeof r.timestamp === 'string')
-    .map((r) => ({ date: (r.timestamp as string).slice(0, 10), views: Number(r.count ?? 0), uniqueViews: Number(r.uniques ?? 0) }));
+    .map((r) => ({ date: (r.timestamp as string).slice(0, 10), views: num(r.count), uniqueViews: num(r.uniques) }));
 }
 
 /** Per-day clones from GET /traffic/clones?per=day. */
 export function parseClones(body: unknown): DayClones[] {
   return rows(body, 'clones')
     .filter((r) => typeof r.timestamp === 'string')
-    .map((r) => ({ date: (r.timestamp as string).slice(0, 10), clones: Number(r.count ?? 0), uniqueClones: Number(r.uniques ?? 0) }));
+    .map((r) => ({ date: (r.timestamp as string).slice(0, 10), clones: num(r.count), uniqueClones: num(r.uniques) }));
 }
 
 /** Top-10 referrers from GET /traffic/popular/referrers. */
 export function parseReferrers(body: unknown): Referrer[] {
   return (Array.isArray(body) ? body : [])
-    .map((r) => ({ referrer: String(r?.referrer ?? ''), count: Number(r?.count ?? 0), uniques: Number(r?.uniques ?? 0) }))
+    .map((r) => ({ referrer: String(r?.referrer ?? ''), count: num(r?.count), uniques: num(r?.uniques) }))
     .filter((r) => r.referrer);
 }
 
 /** Top-10 popular paths from GET /traffic/popular/paths. */
 export function parsePaths(body: unknown): PathStat[] {
   return (Array.isArray(body) ? body : [])
-    .map((p) => ({ path: String(p?.path ?? ''), title: String(p?.title ?? ''), count: Number(p?.count ?? 0), uniques: Number(p?.uniques ?? 0) }))
+    .map((p) => ({ path: String(p?.path ?? ''), title: String(p?.title ?? ''), count: num(p?.count), uniques: num(p?.uniques) }))
     .filter((p) => p.path);
 }
 

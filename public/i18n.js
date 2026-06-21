@@ -52,6 +52,9 @@ export function applyI18n(root = document) {
   root.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
     el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria-label")));
   });
+  root.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    el.setAttribute("title", t(el.getAttribute("data-i18n-title")));
+  });
 }
 
 export { LANGUAGES };

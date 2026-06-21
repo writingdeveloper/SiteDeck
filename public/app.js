@@ -2,7 +2,7 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore } from "/format.js";
 
 // A change of this magnitude (%) is a "big mover" worth emphasizing for triage.
 const DELTA_BIG = 30;
@@ -141,16 +141,6 @@ function setStatus(html, kind) {
   els.status.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
   els.status.innerHTML = html;
   els.status.hidden = !html;
-}
-
-// Numeric sort value for a site under the active column. Search columns read from
-// s.search; every other column is a MetricDelta with a .current. For average
-// position (lower = better) a site with no impressions sorts last via Infinity.
-function sortValue(s, key) {
-  if (key === "searchImpressions") return s.search?.impressions ?? 0;
-  if (key === "searchClicks") return s.search?.clicks ?? 0;
-  if (key === "searchPosition") return s.search && s.search.impressions > 0 ? s.search.position : Infinity;
-  return s[key]?.current ?? 0;
 }
 
 function sortedSites() {
@@ -464,11 +454,6 @@ function checkCell(ok) {
   return `<span class="score ${ok ? "good" : "poor"}">${ok ? "✓" : "✗"}</span>`;
 }
 
-function geoScore(s) {
-  const c = s.checks;
-  return [c.title, c.description, c.canonical, c.openGraph, c.structuredData, s.llmsTxt].filter(Boolean).length;
-}
-
 function geoScoreCell(n) {
   const cls = n >= 5 ? "good" : n >= 3 ? "avg" : "poor";
   return `<span class="score ${cls}">${n}/6</span>`;
@@ -595,7 +580,8 @@ function renderRepos(data) {
       const detail =
         repoDetail(t("repos.referrers"), r.referrers, (x) => `<li>${escapeHtml(x.referrer)} <span class="muted">${fmtNum(x.count)}</span></li>`) +
         repoDetail(t("repos.paths"), r.paths, (x) => `<li>${escapeHtml(x.title || x.path)} <span class="muted">${fmtNum(x.count)}</span></li>`);
-      return `<tr class="repo-row" tabindex="0">
+      const rowAttrs = detail ? ` tabindex="0" role="button" aria-expanded="false"` : "";
+      return `<tr class="repo-row"${rowAttrs}>
         <td class="name">${siteLink(r.displayName, `https://github.com/${r.fullName}`)}</td>
         <td class="num">${fmtNum(tt.views)}</td>
         <td class="num">${fmtNum(tt.uniqueViews)}</td>
@@ -649,13 +635,19 @@ repos.tbody.addEventListener("click", (e) => {
   const row = e.target.closest && e.target.closest(".repo-row");
   if (!row) return;
   const detail = row.nextElementSibling;
-  if (detail && detail.classList.contains("repo-detail-row")) detail.hidden = !detail.hidden;
+  if (detail && detail.classList.contains("repo-detail-row")) {
+    detail.hidden = !detail.hidden;
+    row.setAttribute("aria-expanded", String(!detail.hidden));
+  }
 });
 repos.tbody.addEventListener("keydown", (e) => {
   if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("repo-row")) {
     e.preventDefault();
     const detail = e.target.nextElementSibling;
-    if (detail && detail.classList.contains("repo-detail-row")) detail.hidden = !detail.hidden;
+    if (detail && detail.classList.contains("repo-detail-row")) {
+      detail.hidden = !detail.hidden;
+      e.target.setAttribute("aria-expanded", String(!detail.hidden));
+    }
   }
 });
 

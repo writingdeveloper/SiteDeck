@@ -9,6 +9,8 @@ import {
   cwvRating,
   cwvText,
   deltaClass,
+  sortValue,
+  geoScore,
 } from '../public/format.js';
 
 describe('escapeCsvField', () => {
@@ -128,5 +130,56 @@ describe('resolveTheme', () => {
     expect(resolveTheme('system', false)).toBe('dark');
     expect(resolveTheme(undefined, true)).toBe('light');
     expect(resolveTheme(null, false)).toBe('dark');
+  });
+});
+
+describe('sortValue', () => {
+  it('reads searchImpressions/searchClicks from s.search', () => {
+    const s = { search: { impressions: 10, clicks: 3, position: 5 } };
+    expect(sortValue(s, 'searchImpressions')).toBe(10);
+    expect(sortValue(s, 'searchClicks')).toBe(3);
+  });
+
+  it('returns Infinity for searchPosition when there are no impressions (sorts last)', () => {
+    expect(sortValue({ search: { impressions: 0, clicks: 0, position: 5 } }, 'searchPosition')).toBe(Infinity);
+    expect(sortValue({}, 'searchPosition')).toBe(Infinity);
+  });
+
+  it('returns the actual position when impressions > 0', () => {
+    expect(sortValue({ search: { impressions: 5, clicks: 1, position: 12.5 } }, 'searchPosition')).toBe(12.5);
+  });
+
+  it('reads .current from a MetricDelta column', () => {
+    expect(sortValue({ sessions: { current: 5, deltaPct: 10 } }, 'sessions')).toBe(5);
+  });
+
+  it('returns 0 for a missing metric', () => {
+    expect(sortValue({}, 'sessions')).toBe(0);
+  });
+});
+
+describe('geoScore', () => {
+  const makeChecks = (overrides: Partial<Record<string, boolean>> = {}) => ({
+    title: false,
+    description: false,
+    canonical: false,
+    openGraph: false,
+    structuredData: false,
+    ...overrides,
+  });
+
+  it('returns 0 when all six signals are false', () => {
+    expect(geoScore({ checks: makeChecks(), llmsTxt: false })).toBe(0);
+  });
+
+  it('returns 3 for exactly three true signals', () => {
+    expect(geoScore({ checks: makeChecks({ title: true, description: true, canonical: true }), llmsTxt: false })).toBe(3);
+  });
+
+  it('returns 6 when all six signals are true (locks the /6 denominator)', () => {
+    expect(geoScore({
+      checks: makeChecks({ title: true, description: true, canonical: true, openGraph: true, structuredData: true }),
+      llmsTxt: true,
+    })).toBe(6);
   });
 });

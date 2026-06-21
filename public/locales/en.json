@@ -108,5 +108,15 @@
   "oauth.success": "Authenticated. Returning to the dashboard…",
   "oauth.failed": "Authentication failed: {detail}",
   "oauth.tokenFailed": "Token exchange failed: {detail}",
-  "oauth.noCode": "no code"
+  "oauth.noCode": "no code",
+  "tip.aiTraffic": "AI assistant referrals — ChatGPT, Perplexity, Gemini, Copilot…",
+  "tip.searchImpressions": "Search Console impressions (Google Search)",
+  "tip.searchClicks": "Search Console clicks (Google Search)",
+  "tip.searchPosition": "Search Console average position — lower is better",
+  "tip.title": "Has a non-empty <title>",
+  "tip.description": "Has a meta description",
+  "tip.canonical": "Has a canonical URL",
+  "tip.openGraph": "Has Open Graph tags (social/AI previews)",
+  "tip.structuredData": "Has JSON-LD structured data (rich results + AI engines)",
+  "tip.llmsTxt": "Serves /llms.txt (AI-crawler guidance)"
 }

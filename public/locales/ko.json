@@ -108,5 +108,15 @@
   "oauth.success": "인증되었습니다. 대시보드로 돌아갑니다…",
   "oauth.failed": "인증 실패: {detail}",
   "oauth.tokenFailed": "토큰 교환 실패: {detail}",
-  "oauth.noCode": "코드 없음"
+  "oauth.noCode": "코드 없음",
+  "tip.aiTraffic": "AI 어시스턴트 추천 — ChatGPT, Perplexity, Gemini, Copilot 등",
+  "tip.searchImpressions": "Search Console 노출수 (Google 검색)",
+  "tip.searchClicks": "Search Console 클릭수 (Google 검색)",
+  "tip.searchPosition": "Search Console 평균 순위 — 낮을수록 좋음",
+  "tip.title": "비어 있지 않은 <title> 태그가 있음",
+  "tip.description": "메타 설명이 있음",
+  "tip.canonical": "Canonical URL이 있음",
+  "tip.openGraph": "Open Graph 태그가 있음 (소셜/AI 미리보기)",
+  "tip.structuredData": "JSON-LD 구조화 데이터가 있음 (리치 결과 + AI 엔진)",
+  "tip.llmsTxt": "/llms.txt를 제공함 (AI 크롤러 안내)"
 }
