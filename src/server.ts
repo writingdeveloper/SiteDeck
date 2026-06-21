@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +44,10 @@ const PUBLIC_DIR = path.resolve(__dirname, '../public');
 
 // The port we actually bound — may differ from PORT if it was already taken.
 let actualPort = PORT;
+
+// Outstanding OAuth `state` nonces (single-use, TTL-expired) — a CSRF guard so a
+// same-machine page can't forge a callback that binds the app to another account.
+const pendingOAuthStates = new Set<string>();
 
 // Build the OAuth redirect from our own bound port — never the client-supplied
 // Host header — so it's always a trusted localhost URL and still works after a
@@ -357,7 +362,10 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/oauth/start') {
     try {
       const auth = await getClient();
-      res.writeHead(302, { location: getAuthUrl(auth, oauthRedirectUri()) }).end();
+      const state = randomUUID();
+      pendingOAuthStates.add(state);
+      setTimeout(() => pendingOAuthStates.delete(state), 10 * 60 * 1000).unref(); // 10-min TTL
+      res.writeHead(302, { location: getAuthUrl(auth, oauthRedirectUri(), state) }).end();
     } catch (err) {
       res
         .writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
@@ -373,6 +381,15 @@ const server = http.createServer(async (req, res) => {
     if (oauthError || !code) {
       // oauthError comes straight from the callback query string — escape it.
       const detail = escapeHtml(oauthError ?? tServer(locale, 'oauth.noCode'));
+      res
+        .writeHead(400, { 'content-type': 'text/html; charset=utf-8' })
+        .end(`<p>${tServer(locale, 'oauth.failed', { detail })}</p>`);
+      return;
+    }
+    // Reject a callback whose state we didn't issue (CSRF / replay). Single-use.
+    const state = url.searchParams.get('state');
+    if (!state || !pendingOAuthStates.delete(state)) {
+      const detail = escapeHtml('invalid or expired state');
       res
         .writeHead(400, { 'content-type': 'text/html; charset=utf-8' })
         .end(`<p>${tServer(locale, 'oauth.failed', { detail })}</p>`);

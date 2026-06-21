@@ -80,7 +80,7 @@ async function ghRequest(token: string, url: string): Promise<unknown> {
 
 /** All four traffic endpoints for one repo. Requires the PAT's Administration: Read. */
 export async function fetchRepoTraffic(token: string, owner: string, repo: string): Promise<RepoTraffic> {
-  const base = `${API}/repos/${owner}/${repo}/traffic`;
+  const base = `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/traffic`;
   const [views, clones, referrers, paths] = await Promise.all([
     ghRequest(token, `${base}/views?per=day`),
     ghRequest(token, `${base}/clones?per=day`),

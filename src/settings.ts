@@ -32,7 +32,12 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
     else delete next.githubToken;
   }
   if (patch.githubRepos !== undefined && Array.isArray(patch.githubRepos)) {
-    const repos = patch.githubRepos.filter((r): r is string => typeof r === 'string' && r.trim().length > 0).map((r) => r.trim());
+    // Keep only well-formed "owner/repo" entries so a malformed value can never reach
+    // the api.github.com path (parseRepo is the matching runtime guard).
+    const repos = patch.githubRepos
+      .filter((r): r is string => typeof r === 'string')
+      .map((r) => r.trim())
+      .filter((r) => /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(r));
     if (repos.length) next.githubRepos = repos;
     else delete next.githubRepos;
   }

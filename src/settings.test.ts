@@ -29,10 +29,13 @@ describe('mergeSettings', () => {
 });
 
 describe('mergeSettings — github', () => {
-  it('keeps a trimmed token and a string-only repo list', () => {
-    const s = mergeSettings({}, { githubToken: '  tok  ', githubRepos: ['o/r', '', 'a/b'] as unknown as string[] });
+  it('keeps a trimmed token and only well-formed owner/repo entries', () => {
+    const s = mergeSettings({}, {
+      githubToken: '  tok  ',
+      githubRepos: ['o/r', '', 'a/b', 'owner/repo/extra', 'noslash'] as unknown as string[],
+    });
     expect(s.githubToken).toBe('tok');
-    expect(s.githubRepos).toEqual(['o/r', 'a/b']);
+    expect(s.githubRepos).toEqual(['o/r', 'a/b']); // 'owner/repo/extra' and 'noslash' rejected
   });
 
   it('clears the token when an empty string is patched in', () => {

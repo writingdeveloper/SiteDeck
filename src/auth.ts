@@ -93,12 +93,13 @@ export async function isAuthenticated(): Promise<boolean> {
   return Boolean(c.credentials?.refresh_token);
 }
 
-export function getAuthUrl(c: OAuth2Client, redirectUri: string): string {
+export function getAuthUrl(c: OAuth2Client, redirectUri: string, state: string): string {
   return c.generateAuthUrl({
     redirect_uri: redirectUri,
     access_type: 'offline',
     prompt: 'consent',
     scope: OAUTH_SCOPES,
+    state,
   });
 }
 

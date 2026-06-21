@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseOnPage, fetchOnPage, mapPool } from './onpage';
+import { parseOnPage, fetchOnPage, mapPool, isSafeUrl, isBlockedHost } from './onpage';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -15,6 +15,37 @@ function stubFetch(fn: (url: string) => { ok: boolean; status?: number; body?: s
     } as unknown as Response);
   });
 }
+
+describe('SSRF guard', () => {
+  it('isSafeUrl allows public http(s) and blocks bad schemes + internal hosts', () => {
+    expect(isSafeUrl('https://example.com/')).toBe(true);
+    expect(isSafeUrl('http://example.com')).toBe(true);
+    expect(isSafeUrl('javascript:alert(1)')).toBe(false);
+    expect(isSafeUrl('file:///etc/passwd')).toBe(false);
+    expect(isSafeUrl('http://127.0.0.1/')).toBe(false);
+    expect(isSafeUrl('http://localhost:4317/')).toBe(false);
+    expect(isSafeUrl('http://169.254.169.254/latest/meta-data')).toBe(false);
+    expect(isSafeUrl('http://192.168.1.1/')).toBe(false);
+    expect(isSafeUrl('http://10.0.0.5/')).toBe(false);
+    expect(isSafeUrl('not a url')).toBe(false);
+  });
+
+  it('isBlockedHost flags loopback/link-local/private literals but not public hosts', () => {
+    expect(isBlockedHost('example.com')).toBe(false);
+    expect(isBlockedHost('8.8.8.8')).toBe(false);
+    expect(isBlockedHost('127.0.0.1')).toBe(true);
+    expect(isBlockedHost('::1')).toBe(true);
+    expect(isBlockedHost('172.16.0.1')).toBe(true);
+    expect(isBlockedHost('172.32.0.1')).toBe(false);
+  });
+
+  it('fetchOnPage refuses an internal URL without any network call', async () => {
+    const r = await fetchOnPage({ propertyId: '1', displayName: 'X', url: 'http://127.0.0.1/admin' });
+    expect(r.checks).toBeNull();
+    expect(r.error).toMatch(/blocked/i);
+    expect(r.llmsTxt).toBe(false);
+  });
+});
 
 const FULL = `<!doctype html><html><head>
   <title>Soursea — AI tools</title>

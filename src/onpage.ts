@@ -1,3 +1,4 @@
+import net from 'node:net';
 import type { OAuth2Client } from 'google-auth-library';
 import { listSiteUrls, type SiteUrl } from './ga';
 
@@ -55,12 +56,46 @@ export function parseOnPage(html: string): OnPageChecks {
   };
 }
 
-function fetchWithTimeout(url: string, ms: number): Promise<Response> {
-  return fetch(url, {
-    redirect: 'follow',
-    headers: { 'user-agent': 'SiteDeck/onpage-check' },
-    signal: AbortSignal.timeout(ms),
-  });
+/** Obviously-internal hosts: localhost, loopback, link-local, and private IP ranges. */
+export function isBlockedHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (net.isIPv4(h)) {
+    const [a = 0, b = 0] = h.split('.').map(Number);
+    return a === 0 || a === 127 || a === 10 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  if (net.isIPv6(h)) {
+    return h === '::' || h === '::1' || h.startsWith('fe80') || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('::ffff:127');
+  }
+  return false;
+}
+
+/** Only http(s) to a non-internal host may be fetched for an on-page check (SSRF guard). */
+export function isSafeUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr);
+    return (u.protocol === 'http:' || u.protocol === 'https:') && !isBlockedHost(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// Follow redirects manually so EVERY hop is SSRF-checked — redirect:'follow' would
+// silently bounce a public-looking URL into 127.0.0.1 / the LAN / link-local metadata.
+async function fetchGuarded(urlStr: string, ms: number, maxRedirects = 5): Promise<Response> {
+  let url = urlStr;
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    if (!isSafeUrl(url)) throw new Error(`blocked URL (bad scheme or internal host): ${url}`);
+    const res = await fetch(url, {
+      redirect: 'manual',
+      headers: { 'user-agent': 'SiteDeck/onpage-check' },
+      signal: AbortSignal.timeout(ms),
+    });
+    const location = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+    if (!location) return res;
+    url = new URL(location, url).href;
+  }
+  throw new Error('too many redirects');
 }
 
 /** Fetch one site's homepage + /llms.txt and compute its on-page checks. */
@@ -69,7 +104,7 @@ export async function fetchOnPage(site: SiteUrl): Promise<SiteOnPage> {
   let checks: OnPageChecks | null = null;
   let error: string | null = null;
   try {
-    const res = await fetchWithTimeout(site.url, 8000);
+    const res = await fetchGuarded(site.url, 8000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     checks = parseOnPage(await res.text());
   } catch (e) {
@@ -77,7 +112,7 @@ export async function fetchOnPage(site: SiteUrl): Promise<SiteOnPage> {
   }
   let llmsTxt = false;
   try {
-    llmsTxt = (await fetchWithTimeout(new URL('/llms.txt', site.url).href, 6000)).ok;
+    llmsTxt = (await fetchGuarded(new URL('/llms.txt', site.url).href, 6000)).ok;
   } catch {
     llmsTxt = false;
   }

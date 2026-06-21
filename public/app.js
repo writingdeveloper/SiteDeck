@@ -104,8 +104,14 @@ function gaUrl(propertyId) {
 // is known. Opens in the browser; in Electron the will-navigate handler externalizes it.
 function siteLink(name, href) {
   const safe = escapeHtml(name);
-  return href
-    ? `<a class="site-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${safe}</a>`
+  // Only link to an http(s) target — a hostile `javascript:`/`file:` defaultUri must
+  // render as plain text, not a clickable link, even though escapeHtml guards the attr.
+  let httpHref = null;
+  try {
+    if (href && /^https?:$/.test(new URL(href).protocol)) httpHref = href;
+  } catch {}
+  return httpHref
+    ? `<a class="site-link" href="${escapeHtml(httpHref)}" target="_blank" rel="noopener noreferrer">${safe}</a>`
     : safe;
 }
 
@@ -230,7 +236,7 @@ async function load() {
       state.data = null;
       els.tbody.innerHTML = "";
       setStatus(
-        `${t("status.needAuth")} <a href="${data.authUrl}">${t("link.connectAccount")}</a> · <a href="${SETUP_URL}" target="_blank" rel="noopener noreferrer">${t("link.setupGuide")}</a>`,
+        `${t("status.needAuth")} <a href="${escapeHtml(data.authUrl)}">${t("link.connectAccount")}</a> · <a href="${SETUP_URL}" target="_blank" rel="noopener noreferrer">${t("link.setupGuide")}</a>`,
         "warn",
       );
       return;
@@ -525,7 +531,7 @@ async function loadOnpage(force) {
       geo.tbody.innerHTML = "";
       geo.status.hidden = false;
       geo.status.className = "status warn";
-      geo.status.innerHTML = `${t("status.needAuth")} <a href="${data.authUrl}">${t("link.connectAccount")}</a>`;
+      geo.status.innerHTML = `${t("status.needAuth")} <a href="${escapeHtml(data.authUrl)}">${t("link.connectAccount")}</a>`;
       return;
     }
     state.onpage = data;
