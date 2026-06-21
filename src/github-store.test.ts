@@ -47,14 +47,30 @@ describe('putSnapshot', () => {
 });
 
 describe('summarize', () => {
-  it('totals the last 14 days and builds a daily-views trend', () => {
+  it('totals a contiguous 14-day calendar window and zero-fills the trend', () => {
     let s = emptyStore();
-    const days = Array.from({ length: 3 }, (_, i) => ({ date: `2026-06-1${i}`, views: (i + 1) * 10, uniqueViews: i + 1 }));
+    const days = ['2026-06-10', '2026-06-11', '2026-06-12'].map((date, i) => ({ date, views: (i + 1) * 10, uniqueViews: i + 1 }));
     s = upsertDays(s, 'o/r', 'r', days, [], 90, 't1');
-    const sum = summarize(s, 30)[0];
+    const sum = summarize(s, 5)[0];
     expect(sum?.fullName).toBe('o/r');
     expect(sum?.totals14d).toEqual({ views: 60, uniqueViews: 6, clones: 0, uniqueClones: 0 });
-    expect(sum?.trend).toEqual([10, 20, 30]);
+    // last 5 calendar days ending 06-12: 06-08=0, 06-09=0, then the three measured days
+    expect(sum?.trend).toEqual([0, 0, 10, 20, 30]);
+  });
+
+  it('counts calendar days, so a day older than the window is excluded from the 14d total', () => {
+    let s = emptyStore();
+    s = upsertDays(s, 'o/r', 'r', [{ date: '2026-05-01', views: 5, uniqueViews: 5 }, { date: '2026-06-12', views: 7, uniqueViews: 7 }], [], 90, 't1');
+    const sum = summarize(s, 5)[0];
+    expect(sum?.totals14d.views).toBe(7); // 05-01 is >14 calendar days before 06-12 → outside the window
+    expect(sum?.trend).toEqual([0, 0, 0, 0, 7]);
+  });
+
+  it('returns zeros and an empty trend for a repo with no day data', () => {
+    const s = putSnapshot(emptyStore(), 'o/r', 'r', [], [], 't1');
+    const sum = summarize(s, 5)[0];
+    expect(sum?.totals14d).toEqual({ views: 0, uniqueViews: 0, clones: 0, uniqueClones: 0 });
+    expect(sum?.trend).toEqual([]);
   });
 });
 

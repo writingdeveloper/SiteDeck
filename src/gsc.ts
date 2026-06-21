@@ -109,7 +109,10 @@ export async function fetchSearchMetrics(
   const body = await gscRequest(auth, url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ startDate: range.startDate, endDate: range.endDate }),
+    // Search Console finalizes data ~2-3 days late; our range ends yesterday, so
+    // without dataState:'all' (the default 'final') the most recent days come back
+    // empty and clicks/impressions are silently undercounted on every refresh.
+    body: JSON.stringify({ startDate: range.startDate, endDate: range.endDate, dataState: 'all' }),
   });
   return parseSearchMetrics(body as GscQueryBody);
 }

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import open from 'open';
-import { OAUTH_CALLBACK_PATH, PERIODS, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
+import { GA_CONCURRENCY, OAUTH_CALLBACK_PATH, PERIODS, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
 import {
   credentialsStatus,
   getAuthUrl,
@@ -25,7 +25,7 @@ import {
   listSiteUrls,
 } from './ga';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
-import { getOnPageReport } from './onpage';
+import { getOnPageReport, mapPool } from './onpage';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import {
@@ -102,52 +102,53 @@ async function buildSummary(period: Period): Promise<{
   // Search Console data: each property's site URL and the user's verified GSC sites.
   // GSC is best-effort — if the scope wasn't granted (older token) or a call fails,
   // we fall back to no search data rather than failing the whole summary.
-  const [props, siteUrls, gscSites] = await Promise.all([
-    listProperties(auth),
-    listSiteUrls(auth).catch(() => []),
+  const props = await listProperties(auth);
+  const [siteUrls, gscSites] = await Promise.all([
+    listSiteUrls(auth, props).catch(() => []),
     listGscSites(auth).catch(() => []),
   ]);
   const gscMatch = matchSites(siteUrls, gscSites);
 
+  // Bound the per-property fan-out: each property fans out ~7 Data API calls, so an
+  // unbounded props.map would launch P×7 simultaneous requests and silently 429 past
+  // ~10-15 properties. mapPool caps in-flight properties at GA_CONCURRENCY.
   const sites = (
-    await Promise.all(
-      props.map(async (p): Promise<SiteSummary | null> => {
-        try {
-          const gscSiteUrl = gscMatch.get(p.propertyId);
-          const [cur, prev, topPage, topSource, trend, aiCur, aiPrev, search] = await Promise.all([
-            fetchRange(auth, p.propertyId, ranges.current),
-            fetchRange(auth, p.propertyId, ranges.previous),
-            fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
-            fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
-            fetchDailySeries(auth, p.propertyId, ranges.current),
-            fetchAiSessions(auth, p.propertyId, ranges.current),
-            fetchAiSessions(auth, p.propertyId, ranges.previous),
-            gscSiteUrl
-              ? fetchSearchMetrics(auth, gscSiteUrl, ranges.current).catch(() => null)
-              : Promise.resolve(null),
-          ]);
-          return {
-            propertyId: p.propertyId,
-            displayName: p.displayName,
-            activeUsers: metricDelta(cur.activeUsers, prev.activeUsers),
-            sessions: metricDelta(cur.sessions, prev.sessions),
-            keyEvents: metricDelta(cur.keyEvents, prev.keyEvents),
-            aiSessions: metricDelta(aiCur, aiPrev),
-            trend,
-            topPage,
-            topSource,
-            search,
-          };
-        } catch (err) {
-          errors.push({
-            propertyId: p.propertyId,
-            displayName: p.displayName,
-            message: err instanceof Error ? err.message : String(err),
-          });
-          return null;
-        }
-      }),
-    )
+    await mapPool(props, GA_CONCURRENCY, async (p): Promise<SiteSummary | null> => {
+      try {
+        const gscSiteUrl = gscMatch.get(p.propertyId);
+        const [cur, prev, topPage, topSource, trend, aiCur, aiPrev, search] = await Promise.all([
+          fetchRange(auth, p.propertyId, ranges.current),
+          fetchRange(auth, p.propertyId, ranges.previous),
+          fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
+          fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
+          fetchDailySeries(auth, p.propertyId, ranges.current),
+          fetchAiSessions(auth, p.propertyId, ranges.current),
+          fetchAiSessions(auth, p.propertyId, ranges.previous),
+          gscSiteUrl
+            ? fetchSearchMetrics(auth, gscSiteUrl, ranges.current).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+        return {
+          propertyId: p.propertyId,
+          displayName: p.displayName,
+          activeUsers: metricDelta(cur.activeUsers, prev.activeUsers),
+          sessions: metricDelta(cur.sessions, prev.sessions),
+          keyEvents: metricDelta(cur.keyEvents, prev.keyEvents),
+          aiSessions: metricDelta(aiCur, aiPrev),
+          trend,
+          topPage,
+          topSource,
+          search,
+        };
+      } catch (err) {
+        errors.push({
+          propertyId: p.propertyId,
+          displayName: p.displayName,
+          message: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+      }
+    })
   ).filter((s): s is SiteSummary => s !== null);
 
   return { authenticated: true, period, generatedAt: new Date().toISOString(), sites, errors };

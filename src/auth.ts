@@ -62,7 +62,12 @@ export async function getClient(): Promise<OAuth2Client> {
       // derived from the actually-bound port — so none is set on the client here.
       const c = new OAuth2Client({ clientId, clientSecret });
       c.on('tokens', (tokens) => {
-        void persistTokens(c.credentials, tokens);
+        // Fire-and-forget, but never let a transient disk/permission error during a
+        // background refresh become an unhandled rejection that crashes the process —
+        // losing one token write is harmless; the next refresh re-issues it.
+        void persistTokens(c.credentials, tokens).catch((err) => {
+          console.error('token persist failed (non-fatal):', err);
+        });
       });
       if (existsSync(TOKEN_PATH)) {
         try {

@@ -181,4 +181,14 @@ describe('listGscSites / fetchSearchMetrics (network)', () => {
     stubJson({}, false, 403);
     await expect(listGscSites(auth)).rejects.toThrow(/403/);
   });
+
+  it("requests dataState:'all' so the latest unfinalized days are not dropped", async () => {
+    let sentBody: { dataState?: string } = {};
+    vi.stubGlobal('fetch', (_url: unknown, init: { body?: string }) => {
+      sentBody = JSON.parse(init?.body ?? '{}');
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ rows: [] }) } as unknown as Response);
+    });
+    await fetchSearchMetrics(auth, 'sc-domain:x.com', { startDate: '2024-01-01', endDate: '2024-01-28' });
+    expect(sentBody.dataState).toBe('all');
+  });
 });

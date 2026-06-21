@@ -152,13 +152,17 @@ export interface SiteUrl {
   url: string;
 }
 
-/** Each property's first web data stream URL (defaultUri). Non-web properties are skipped. */
-export async function listSiteUrls(auth: OAuth2Client): Promise<SiteUrl[]> {
-  const props = await listProperties(auth);
+/**
+ * Each property's first web data stream URL (defaultUri). Non-web properties are
+ * skipped. Pass `props` to reuse an already-fetched property list (callers that also
+ * need listProperties shouldn't pay for a second accountSummaries.list).
+ */
+export async function listSiteUrls(auth: OAuth2Client, props?: PropertyRef[]): Promise<SiteUrl[]> {
+  const properties = props ?? (await listProperties(auth));
   const client = admin(auth);
   const out: SiteUrl[] = [];
   await Promise.all(
-    props.map(async (p) => {
+    properties.map(async (p) => {
       const [streams] = await client.listDataStreams({ parent: `properties/${p.propertyId}` });
       const url = streams.find((s) => s.webStreamData?.defaultUri)?.webStreamData?.defaultUri;
       if (url) out.push({ propertyId: p.propertyId, displayName: p.displayName, url });

@@ -57,6 +57,13 @@ export const INSIGHTS_CONCURRENCY = 2;
 export const INSIGHTS_RETENTION = 90;
 export const INSIGHTS_TREND_LENGTH = 30;
 
+/**
+ * Max GA4 properties whose metrics are fetched concurrently in buildSummary. Each
+ * property fans out ~7 Data API calls, so this bounds peak in-flight requests at
+ * ~7× this (independent of property count) to stay under GA4's concurrency limit.
+ */
+export const GA_CONCURRENCY = 6;
+
 /** GitHub repo-traffic config (mirrors the PSI/insights constants). */
 export const GITHUB_STORE_PATH = path.join(CONFIG_DIR, 'github.json');
 export const GITHUB_INTERVAL_MS = 24 * 60 * 60 * 1000;
