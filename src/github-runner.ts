@@ -1,7 +1,8 @@
 import { GITHUB_STORE_PATH, GITHUB_INTERVAL_MS, GITHUB_CONCURRENCY, GITHUB_RETENTION_DAYS, GITHUB_TREND_LENGTH } from './config';
 import { getGithubToken, getGithubRepos } from './settings';
 import { fetchRepoTraffic, parseRepo } from './github';
-import { shouldMeasure } from './insights-store';
+import { shouldMeasure } from './schedule';
+import { mapPool } from './concurrency';
 import { type GithubStore, emptyStore, loadStore, saveStore, upsertDays, putSnapshot, summarize } from './github-store';
 
 let store: GithubStore = emptyStore();
@@ -22,16 +23,6 @@ export function getGithubState() {
   };
 }
 
-async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  const queue = [...items];
-  const workers = Array.from({ length: Math.max(1, Math.min(limit, queue.length)) }, async () => {
-    for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
-      await fn(item);
-    }
-  });
-  await Promise.all(workers);
-}
-
 async function runMeasurement(): Promise<void> {
   const token = getGithubToken();
   // Guard here (not only in measureNow) so the scheduler tick can never race a second run.
@@ -40,7 +31,7 @@ async function runMeasurement(): Promise<void> {
   lastErrors = [];
   try {
     const repos = getGithubRepos();
-    await mapLimit(repos, GITHUB_CONCURRENCY, async (fullName) => {
+    await mapPool(repos, GITHUB_CONCURRENCY, async (fullName) => {
       const parsed = parseRepo(fullName);
       if (!parsed) {
         lastErrors.push({ repo: fullName, message: 'invalid repo (expected owner/repo)' });

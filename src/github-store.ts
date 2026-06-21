@@ -1,7 +1,5 @@
-import { readFile, rename } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { writeJsonAtomic } from './atomic';
 import type { DayViews, DayClones, Referrer, PathStat } from './github';
+import { loadJsonStore, saveJsonStore } from './store-io';
 
 export interface DayCount {
   views: number;
@@ -145,18 +143,10 @@ export function summarize(store: GithubStore, trendLength: number): RepoSummary[
   });
 }
 
-export async function loadStore(filePath: string): Promise<GithubStore> {
-  if (!existsSync(filePath)) return emptyStore();
-  try {
-    const parsed = JSON.parse(await readFile(filePath, 'utf8')) as GithubStore;
-    if (parsed && typeof parsed === 'object' && parsed.byRepo) return parsed;
-    throw new Error('bad shape');
-  } catch {
-    await rename(filePath, `${filePath}.${Date.now()}.bak`).catch(() => {});
-    return emptyStore();
-  }
+export function loadStore(filePath: string): Promise<GithubStore> {
+  return loadJsonStore<GithubStore>(filePath, emptyStore, (p) => Boolean((p as { byRepo?: unknown }).byRepo));
 }
 
-export async function saveStore(filePath: string, store: GithubStore): Promise<void> {
-  await writeJsonAtomic(filePath, store);
+export function saveStore(filePath: string, store: GithubStore): Promise<void> {
+  return saveJsonStore(filePath, store);
 }

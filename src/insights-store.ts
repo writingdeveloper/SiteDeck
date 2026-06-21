@@ -1,7 +1,5 @@
-import { readFile, rename } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import type { PsiScores } from './psi';
-import { writeJsonAtomic } from './atomic';
+import { loadJsonStore, saveJsonStore } from './store-io';
 
 export interface Measurement extends PsiScores {
   ts: string;
@@ -42,12 +40,6 @@ export function appendMeasurement(
   };
 }
 
-export function shouldMeasure(lastRunAt: string | null, nowMs: number, intervalMs: number): boolean {
-  if (!lastRunAt) return true;
-  const last = Date.parse(lastRunAt);
-  return Number.isNaN(last) || nowMs - last >= intervalMs;
-}
-
 export function summarize(store: InsightsStore, trendLength: number): InsightsSite[] {
   return Object.entries(store.byUrl).map(([url, entry]) => ({
     url,
@@ -62,18 +54,10 @@ export function summarize(store: InsightsStore, trendLength: number): InsightsSi
   }));
 }
 
-export async function loadStore(filePath: string): Promise<InsightsStore> {
-  if (!existsSync(filePath)) return emptyStore();
-  try {
-    const parsed = JSON.parse(await readFile(filePath, 'utf8')) as InsightsStore;
-    if (parsed && typeof parsed === 'object' && parsed.byUrl) return parsed;
-    throw new Error('bad shape');
-  } catch {
-    await rename(filePath, `${filePath}.${Date.now()}.bak`).catch(() => {});
-    return emptyStore();
-  }
+export function loadStore(filePath: string): Promise<InsightsStore> {
+  return loadJsonStore<InsightsStore>(filePath, emptyStore, (p) => Boolean((p as { byUrl?: unknown }).byUrl));
 }
 
-export async function saveStore(filePath: string, store: InsightsStore): Promise<void> {
-  await writeJsonAtomic(filePath, store);
+export function saveStore(filePath: string, store: InsightsStore): Promise<void> {
+  return saveJsonStore(filePath, store);
 }

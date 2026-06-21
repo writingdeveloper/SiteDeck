@@ -2,6 +2,7 @@ import net from 'node:net';
 import type { OAuth2Client } from 'google-auth-library';
 import { listSiteUrls, type SiteUrl } from './ga';
 import { ONPAGE_CONCURRENCY, ONPAGE_TIMEOUT_MS, ONPAGE_LLMS_TIMEOUT_MS } from './config';
+import { mapPool } from './concurrency';
 
 export interface OnPageChecks {
   title: boolean;
@@ -118,24 +119,6 @@ export async function fetchOnPage(site: SiteUrl): Promise<SiteOnPage> {
     llmsTxt = false;
   }
   return { ...base, checks, llmsTxt, error };
-}
-
-// Run `task` over items with at most `limit` in flight at once. Exported for tests.
-export async function mapPool<T, R>(
-  items: T[],
-  limit: number,
-  task: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const out = new Array<R>(items.length);
-  let next = 0;
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await task(items[i] as T);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return out;
 }
 
 /** On-page report for every web property, fetched concurrently (bounded). */

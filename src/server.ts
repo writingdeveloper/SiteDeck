@@ -26,7 +26,8 @@ import {
   listSiteUrls,
 } from './ga';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
-import { getOnPageReport, mapPool } from './onpage';
+import { getOnPageReport } from './onpage';
+import { mapPool } from './concurrency';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import {

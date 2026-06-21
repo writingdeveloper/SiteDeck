@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseOnPage, fetchOnPage, mapPool, isSafeUrl, isBlockedHost } from './onpage';
+import { parseOnPage, fetchOnPage, isSafeUrl, isBlockedHost } from './onpage';
+import { mapPool } from './concurrency';
 
 afterEach(() => vi.unstubAllGlobals());
 

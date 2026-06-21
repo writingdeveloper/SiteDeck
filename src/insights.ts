@@ -15,9 +15,10 @@ import {
   loadStore,
   saveStore,
   appendMeasurement,
-  shouldMeasure,
   summarize,
 } from './insights-store';
+import { shouldMeasure } from './schedule';
+import { mapPool } from './concurrency';
 
 let store: InsightsStore = emptyStore();
 let measuring = false;
@@ -37,16 +38,6 @@ export function getInsightsState() {
   };
 }
 
-async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  const queue = [...items];
-  const workers = Array.from({ length: Math.max(1, Math.min(limit, queue.length)) }, async () => {
-    for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
-      await fn(item);
-    }
-  });
-  await Promise.all(workers);
-}
-
 async function runMeasurement(): Promise<void> {
   const apiKey = getPsiApiKey();
   // Guard here (not only in measureNow) so the scheduler tick can never start a
@@ -57,7 +48,7 @@ async function runMeasurement(): Promise<void> {
   try {
     const auth = await getClient();
     const sites = await listSiteUrls(auth);
-    await mapLimit(sites, INSIGHTS_CONCURRENCY, async (site) => {
+    await mapPool(sites, INSIGHTS_CONCURRENCY, async (site) => {
       try {
         const scores = await fetchPsiScores(apiKey, site.url);
         store = appendMeasurement(
