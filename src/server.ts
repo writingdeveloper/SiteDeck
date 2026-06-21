@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import open from 'open';
-import { GA_CONCURRENCY, OAUTH_CALLBACK_PATH, PERIODS, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
+import { GA_CONCURRENCY, OAUTH_CALLBACK_PATH, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
 import {
   credentialsStatus,
   getAuthUrl,
@@ -36,6 +36,7 @@ import {
 } from './github-runner';
 import { listenWithFallback } from './listen';
 import { escapeHtml } from './html';
+import { isReauthError, parsePeriod } from './http-helpers';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -74,11 +75,6 @@ const MIME: Record<string, string> = {
 function json(res: http.ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
-}
-
-function parsePeriod(raw: string | null): Period {
-  const n = Number(raw);
-  return (PERIODS as readonly number[]).includes(n) ? (n as Period) : 28;
 }
 
 interface SummaryError {
@@ -173,13 +169,6 @@ async function serveStatic(res: http.ServerResponse, urlPath: string): Promise<v
 function errorBody(err: unknown): { error: { code: string; detail?: string } } {
   if (err instanceof AppError) return { error: { code: err.code, detail: err.detail } };
   return { error: { code: 'unknown', detail: err instanceof Error ? err.message : String(err) } };
-}
-
-// A revoked/expired Google grant surfaces deep in the API client; treat it as
-// "needs to reconnect" rather than an opaque 500.
-function isReauthError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /invalid_grant|invalid_token|token (has been|was) (expired|revoked)|unauthorized_client/i.test(msg);
 }
 
 function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {

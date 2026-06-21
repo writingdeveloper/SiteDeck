@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseViews, parseClones, parseReferrers, parsePaths, fetchRepoTraffic } from './github';
+import { parseViews, parseClones, parseReferrers, parsePaths, fetchRepoTraffic, parseRepo } from './github';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -8,6 +8,20 @@ function stubGh(byUrl: (url: string) => unknown, ok = true, status = 200) {
     Promise.resolve({ ok, status, statusText: 'x', json: async () => byUrl(String(input)) } as unknown as Response),
   );
 }
+
+describe('parseRepo', () => {
+  it('parses a well-formed owner/repo', () => {
+    expect(parseRepo('writingdeveloper/SiteDeck')).toEqual({ owner: 'writingdeveloper', repo: 'SiteDeck' });
+  });
+
+  it('rejects anything that is not exactly owner/repo (so a stray path segment is flagged, not silently mis-measured)', () => {
+    expect(parseRepo('writingdeveloper/SiteDeck/tree/main')).toBeNull();
+    expect(parseRepo('noslash')).toBeNull();
+    expect(parseRepo('/repo')).toBeNull();
+    expect(parseRepo('owner/')).toBeNull();
+    expect(parseRepo('')).toBeNull();
+  });
+});
 
 describe('parseViews / parseClones', () => {
   it('maps the daily timestamp to a YYYY-MM-DD date and reads count/uniques', () => {

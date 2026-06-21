@@ -1,6 +1,6 @@
 import { GITHUB_STORE_PATH, GITHUB_INTERVAL_MS, GITHUB_CONCURRENCY, GITHUB_RETENTION_DAYS, GITHUB_TREND_LENGTH } from './config';
 import { getGithubToken, getGithubRepos } from './settings';
-import { fetchRepoTraffic } from './github';
+import { fetchRepoTraffic, parseRepo } from './github';
 import { shouldMeasure } from './insights-store';
 import { type GithubStore, emptyStore, loadStore, saveStore, upsertDays, putSnapshot, summarize } from './github-store';
 
@@ -41,16 +41,16 @@ async function runMeasurement(): Promise<void> {
   try {
     const repos = getGithubRepos();
     await mapLimit(repos, GITHUB_CONCURRENCY, async (fullName) => {
-      const [owner, repo] = fullName.split('/');
-      if (!owner || !repo) {
+      const parsed = parseRepo(fullName);
+      if (!parsed) {
         lastErrors.push({ repo: fullName, message: 'invalid repo (expected owner/repo)' });
         return;
       }
       try {
-        const traffic = await fetchRepoTraffic(token, owner, repo);
+        const traffic = await fetchRepoTraffic(token, parsed.owner, parsed.repo);
         const ts = new Date().toISOString();
-        store = upsertDays(store, fullName, repo, traffic.views, traffic.clones, GITHUB_RETENTION_DAYS, ts);
-        store = putSnapshot(store, fullName, repo, traffic.referrers, traffic.paths, ts);
+        store = upsertDays(store, fullName, parsed.repo, traffic.views, traffic.clones, GITHUB_RETENTION_DAYS, ts);
+        store = putSnapshot(store, fullName, parsed.repo, traffic.referrers, traffic.paths, ts);
       } catch (err) {
         lastErrors.push({ repo: fullName, message: err instanceof Error ? err.message : String(err) });
       }

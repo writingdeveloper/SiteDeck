@@ -89,3 +89,12 @@ export async function fetchRepoTraffic(token: string, owner: string, repo: strin
   ]);
   return { views: parseViews(views), clones: parseClones(clones), referrers: parseReferrers(referrers), paths: parsePaths(paths) };
 }
+
+/** Split "owner/repo" into its parts, or null if it isn't exactly that shape. */
+export function parseRepo(fullName: string): { owner: string; repo: string } | null {
+  const parts = fullName.split('/');
+  if (parts.length !== 2) return null;
+  const [owner, repo] = parts;
+  if (!owner || !repo) return null;
+  return { owner, repo };
+}
