@@ -118,5 +118,11 @@
   "tip.canonical": "Canonical URL이 있음",
   "tip.openGraph": "Open Graph 태그가 있음 (소셜/AI 미리보기)",
   "tip.structuredData": "JSON-LD 구조화 데이터가 있음 (리치 결과 + AI 엔진)",
-  "tip.llmsTxt": "/llms.txt를 제공함 (AI 크롤러 안내)"
+  "tip.llmsTxt": "/llms.txt를 제공함 (AI 크롤러 안내)",
+  "detail.channels": "채널",
+  "detail.pages": "인기 페이지",
+  "detail.aiEngines": "AI 엔진",
+  "detail.loading": "상세 불러오는 중…",
+  "detail.error": "상세를 불러오지 못했습니다.",
+  "detail.retry": "재시도"
 }

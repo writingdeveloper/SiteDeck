@@ -118,5 +118,11 @@
   "tip.canonical": "Has a canonical URL",
   "tip.openGraph": "Has Open Graph tags (social/AI previews)",
   "tip.structuredData": "Has JSON-LD structured data (rich results + AI engines)",
-  "tip.llmsTxt": "Serves /llms.txt (AI-crawler guidance)"
+  "tip.llmsTxt": "Serves /llms.txt (AI-crawler guidance)",
+  "detail.channels": "Channels",
+  "detail.pages": "Top pages",
+  "detail.aiEngines": "AI engines",
+  "detail.loading": "Loading details…",
+  "detail.error": "Couldn't load details.",
+  "detail.retry": "Retry"
 }

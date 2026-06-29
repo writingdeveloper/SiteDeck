@@ -118,5 +118,11 @@
   "tip.canonical": "有 canonical URL",
   "tip.openGraph": "有 Open Graph 标签（社交/AI 预览）",
   "tip.structuredData": "有 JSON-LD 结构化数据（精选摘要 + AI 引擎）",
-  "tip.llmsTxt": "提供 /llms.txt（AI 爬虫指引）"
+  "tip.llmsTxt": "提供 /llms.txt（AI 爬虫指引）",
+  "detail.channels": "渠道",
+  "detail.pages": "热门页面",
+  "detail.aiEngines": "AI 引擎",
+  "detail.loading": "正在加载详情…",
+  "detail.error": "无法加载详情。",
+  "detail.retry": "重试"
 }

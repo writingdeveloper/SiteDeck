@@ -118,5 +118,11 @@
   "tip.canonical": "canonical URL がある",
   "tip.openGraph": "Open Graph タグがある（SNS/AI プレビュー）",
   "tip.structuredData": "JSON-LD 構造化データがある（リッチリザルト + AI エンジン）",
-  "tip.llmsTxt": "/llms.txt を提供している（AI クローラー向けガイダンス）"
+  "tip.llmsTxt": "/llms.txt を提供している（AI クローラー向けガイダンス）",
+  "detail.channels": "チャネル",
+  "detail.pages": "人気ページ",
+  "detail.aiEngines": "AIエンジン",
+  "detail.loading": "詳細を読み込み中…",
+  "detail.error": "詳細を読み込めませんでした。",
+  "detail.retry": "再試行"
 }

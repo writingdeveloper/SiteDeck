@@ -118,5 +118,11 @@
   "tip.canonical": "Tiene una URL canónica",
   "tip.openGraph": "Tiene etiquetas Open Graph (vistas previas sociales/IA)",
   "tip.structuredData": "Tiene datos estructurados JSON-LD (resultados enriquecidos + motores IA)",
-  "tip.llmsTxt": "Sirve /llms.txt (guía para rastreadores de IA)"
+  "tip.llmsTxt": "Sirve /llms.txt (guía para rastreadores de IA)",
+  "detail.channels": "Canales",
+  "detail.pages": "Páginas top",
+  "detail.aiEngines": "Motores de IA",
+  "detail.loading": "Cargando detalles…",
+  "detail.error": "No se pudieron cargar los detalles.",
+  "detail.retry": "Reintentar"
 }

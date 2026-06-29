@@ -256,6 +256,15 @@ svg.spark {
   display: block;
 }
 
+/* Expandable traffic-row drawer: channel/page/AI-engine breakdowns. */
+.site-detail { display: flex; flex-wrap: wrap; gap: 1.5rem; padding: 0.5rem 0.75rem; }
+.bd-block { min-width: 12rem; }
+.bd-block > b { display: block; margin-bottom: 0.25rem; font-size: 0.85em; opacity: 0.8; }
+.bd-block ul { margin: 0; padding-left: 1rem; }
+.bd-block li { font-variant-numeric: tabular-nums; }
+.site-row { cursor: pointer; }
+.link-btn { background: none; border: none; color: var(--link, #4ea1ff); cursor: pointer; padding: 0; text-decoration: underline; font: inherit; }
+
 .delta {
   font-size: 12px;
   margin-left: 6px;

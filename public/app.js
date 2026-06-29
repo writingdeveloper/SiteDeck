@@ -13,7 +13,7 @@ const store = {
   set: (k, v) => { try { localStorage.setItem("sitedeck." + k, v); } catch {} },
 };
 
-const state = { data: null, insights: null, onpage: null, github: null, filter: "", sortKey: "activeUsers", sortDir: "desc" };
+const state = { data: null, insights: null, onpage: null, github: null, filter: "", sortKey: "activeUsers", sortDir: "desc", siteDetail: {} };
 
 const els = {
   period: document.getElementById("period"),
@@ -159,6 +159,65 @@ function sortedSites() {
   return sites;
 }
 
+function findSite(propertyId) {
+  return (state.data?.sites ?? []).find((s) => s.propertyId === propertyId) || null;
+}
+
+// 드로어 한 칸(채널/페이지/AI엔진 톱N 막대). rows: [{name, value}].
+function breakdownBlock(label, rows) {
+  if (!rows || !rows.length) return "";
+  const items = rows
+    .map((x) => `<li>${escapeHtml(x.name)} <span class="muted">${fmtNum(x.value)}</span></li>`)
+    .join("");
+  return `<div class="bd-block"><b>${escapeHtml(label)}</b><ul>${items}</ul></div>`;
+}
+
+function detailLoading() {
+  return `<div class="site-detail"><span class="muted">${t("detail.loading")}</span></div>`;
+}
+function detailError(propertyId) {
+  return `<div class="site-detail"><span class="status error">${t("detail.error")}</span> ` +
+    `<button class="link-btn" type="button" data-retry="${escapeHtml(propertyId)}">${t("detail.retry")}</button></div>`;
+}
+
+// 드로어 본문(분해). Task 6에서 전략 섹션, Task 7에서 "전체 복사"가 여기 추가됨.
+function renderSiteDetailBody(site, detail) {
+  return `<div class="site-detail">` +
+    breakdownBlock(t("detail.channels"), detail.channels) +
+    breakdownBlock(t("detail.pages"), detail.pages) +
+    breakdownBlock(t("detail.aiEngines"), detail.aiEngines) +
+    `</div>`;
+}
+
+async function fetchSiteDetailInto(propertyId, cell) {
+  const key = `${propertyId}:${state.data.period}`;
+  cell.innerHTML = detailLoading();
+  try {
+    const res = await fetch(`/api/site-detail?propertyId=${encodeURIComponent(propertyId)}&period=${state.data.period}`);
+    const data = await res.json().catch(() => null);
+    if (!data || data.error || data.authenticated === false) throw new Error("detail failed");
+    state.siteDetail[key] = data;
+    cell.innerHTML = renderSiteDetailBody(findSite(propertyId), data);
+  } catch {
+    cell.innerHTML = detailError(propertyId);
+  }
+}
+
+// 행 펼치기/접기 + 최초 펼침 시 지연 로딩(캐시되면 즉시).
+function expandSiteRow(row) {
+  const detailRow = row.nextElementSibling;
+  if (!detailRow || !detailRow.classList.contains("site-detail-row")) return;
+  const willOpen = detailRow.hidden;
+  detailRow.hidden = !willOpen;
+  row.setAttribute("aria-expanded", String(willOpen));
+  if (!willOpen) return;
+  const propertyId = row.dataset.prop;
+  const cell = detailRow.firstElementChild;
+  const cached = state.siteDetail[`${propertyId}:${state.data.period}`];
+  if (cached) cell.innerHTML = renderSiteDetailBody(findSite(propertyId), cached);
+  else fetchSiteDetailInto(propertyId, cell);
+}
+
 function render() {
   els.headers.forEach((th) => {
     const key = th.dataset.sort;
@@ -178,7 +237,7 @@ function render() {
   const rows = sites
     .map(
       (s) => `
-      <tr>
+      <tr class="site-row" data-prop="${escapeHtml(s.propertyId)}" tabindex="0" role="button" aria-expanded="false">
         <td class="name">${siteLink(s.displayName, gaUrl(s.propertyId))}</td>
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
@@ -190,7 +249,8 @@ function render() {
         <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
         <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
         <td class="spark-cell" title="${escapeHtml(trendTip(s.trend))}">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
-      </tr>`,
+      </tr>
+      <tr class="site-detail-row" hidden><td colspan="11"></td></tr>`,
     )
     .join("");
   els.tbody.innerHTML = rows || (total && state.filter ? noMatchRow(11) : "");
@@ -202,6 +262,7 @@ const SETUP_URL = "https://github.com/writingdeveloper/SiteDeck#google-cloud-set
 async function load() {
   const period = els.period.value;
   setStatus(t("status.loading"), "info");
+  state.siteDetail = {};
   els.table.hidden = true;
   els.meta.textContent = "";
   try {
@@ -317,6 +378,28 @@ els.headers.forEach((th) => {
       toggleSort(th);
     }
   });
+});
+
+// 트래픽 행 펼치기(Repos 패턴 미러). 링크/버튼 클릭은 펼침을 트리거하지 않음.
+els.tbody.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("a")) return;
+  const retry = e.target.closest && e.target.closest("[data-retry]");
+  if (retry) {
+    const propertyId = retry.getAttribute("data-retry");
+    const detailRow = retry.closest(".site-detail-row");
+    delete state.siteDetail[`${propertyId}:${state.data.period}`];
+    if (detailRow) fetchSiteDetailInto(propertyId, detailRow.firstElementChild);
+    return;
+  }
+  if (e.target.closest && e.target.closest("button")) return;
+  const row = e.target.closest && e.target.closest(".site-row");
+  if (row) expandSiteRow(row);
+});
+els.tbody.addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("site-row")) {
+    e.preventDefault();
+    expandSiteRow(e.target);
+  }
 });
 
 const tabs = document.querySelectorAll(".tab");
