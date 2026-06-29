@@ -17,9 +17,9 @@ ESM TypeScript(tsx dev / esbuild bundle), vitest, GA4 Data API(`@google-analytic
 
 ---
 
-## 컴포넌트 1: 개선 전략 엔진 — `src/strategy.ts`
+## 컴포넌트 1: 개선 전략 엔진 — `public/strategy.js`
 
-순수 함수. 입력은 `SiteSummary`(요약 데이터)와 선택적 상세 분해 데이터. 출력은 심각도순으로 정렬된 finding 배열. `SiteSummary`는 `src/summary.ts`에서 import한다(독립 모듈 — 서버 부팅 없음). `MetricDelta.deltaPct`는 `number | null`이므로 `delta-drop` 규칙은 `typeof deltaPct === 'number'`로 가드한 뒤 비교한다.
+순수 함수. 입력은 `SiteSummary` 형태의 객체와 선택적 채널 분해 데이터. 출력은 심각도순으로 정렬된 finding 배열. **브라우저(`public/app.js`)가 `import`해야 하므로 `format.js`와 동일하게 `public/`에 평범한 JS로 두고**(타입은 `public/strategy.d.ts`), 단위 테스트는 `src/strategy.test.ts`가 `../public/strategy.js`를 import해 검증한다(vitest는 `src/**/*.test.ts`를 수집). 임계값 상수(STRATEGY)는 브라우저에서 `config.ts`를 못 읽으므로 `strategy.js` 안에 자체 보유한다. `deltaPct`는 `number | null`이므로 `delta-drop` 규칙은 `typeof deltaPct === 'number'`로 가드한 뒤 비교한다.
 
 ### 인터페이스
 
@@ -59,23 +59,10 @@ export function analyzeSite(
 
 심각도 순서 `high > medium > low > good`, 동률이면 `id` 알파벳순(안정성). `all-good`은 다른 finding이 하나도 없을 때만 단독 존재.
 
-### 임계값 상수 (`src/config.ts`에 추가)
+### 임계값 상수
 
-```ts
-export const STRATEGY = {
-  DELTA_DROP: -25,
-  TREND_DOWN_RATIO: 0.8,
-  AI_SHARE_LOW: 0.02,
-  AI_SHARE_MIN_SESSIONS: 50,
-  CTR_LOW: 0.02,
-  CTR_MIN_IMPRESSIONS: 100,
-  POSITION_WEAK: 10,
-  CONVERSION_LOW: 0.01,
-  CONVERSION_MIN_SESSIONS: 50,
-  CHANNEL_CONCENTRATION: 0.7,
-} as const;
-export const DETAIL_TOPN = 5;
-```
+- `STRATEGY`(DELTA_DROP −25, TREND_DOWN_RATIO 0.8, AI_SHARE_LOW 0.02 / MIN_SESSIONS 50, CTR_LOW 0.02 / MIN_IMPRESSIONS 100, POSITION_WEAK 10, CONVERSION_LOW 0.01 / MIN_SESSIONS 50, CHANNEL_CONCENTRATION 0.7)는 **`public/strategy.js` 내부**에 둔다(브라우저 로드).
+- `DETAIL_TOPN = 5`는 서버 엔드포인트가 쓰므로 **`src/config.ts`**에 둔다.
 
 ---
 
