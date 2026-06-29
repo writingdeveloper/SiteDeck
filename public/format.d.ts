@@ -9,3 +9,5 @@ export function cwvRating(value: number | null | undefined, kind: string): "good
 export function cwvText(value: number | null | undefined, kind: string): string;
 export function sortValue(s: Record<string, unknown>, key: string): number;
 export function geoScore(s: { checks: Record<string, boolean>; llmsTxt: boolean }): number;
+export function trendSparkText(values: number[] | null | undefined): string;
+export function buildCopyText(site: Record<string, any>, labels: Record<string, string>): string;
