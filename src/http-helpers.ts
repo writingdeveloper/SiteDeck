@@ -12,3 +12,9 @@ export function isReauthError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /invalid_grant|invalid_token|token (has been|was) (expired|revoked)|unauthorized_client/i.test(msg);
 }
+
+/** True for a GA4 numeric property id (digits only, 1–20 chars). Guards the
+ *  site-detail endpoint against path-injection / malformed ids. */
+export function isValidPropertyId(raw: string | null): raw is string {
+  return typeof raw === 'string' && /^\d{1,20}$/.test(raw);
+}

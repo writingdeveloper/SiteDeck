@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeriod, isReauthError } from './http-helpers';
+import { parsePeriod, isReauthError, isValidPropertyId } from './http-helpers';
 
 describe('parsePeriod', () => {
   it('passes through the supported periods', () => {
@@ -29,5 +29,18 @@ describe('isReauthError', () => {
     expect(isReauthError(new Error('ECONNRESET'))).toBe(false);
     expect(isReauthError(new Error('RESOURCE_EXHAUSTED'))).toBe(false);
     expect(isReauthError(null)).toBe(false);
+  });
+});
+
+describe('isValidPropertyId', () => {
+  it('숫자 id를 허용', () => {
+    expect(isValidPropertyId('123456789')).toBe(true);
+  });
+  it('null/빈값/비숫자/초과길이를 거부', () => {
+    expect(isValidPropertyId(null)).toBe(false);
+    expect(isValidPropertyId('')).toBe(false);
+    expect(isValidPropertyId('12a')).toBe(false);
+    expect(isValidPropertyId('../etc')).toBe(false);
+    expect(isValidPropertyId('1'.repeat(21))).toBe(false);
   });
 });

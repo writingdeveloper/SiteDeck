@@ -75,3 +75,6 @@ export const GITHUB_TREND_LENGTH = 30;
 export const ONPAGE_CONCURRENCY = 5;
 export const ONPAGE_TIMEOUT_MS = 8000;
 export const ONPAGE_LLMS_TIMEOUT_MS = 6000;
+
+/** How many rows each /api/site-detail breakdown returns (top N). */
+export const DETAIL_TOPN = 5;
