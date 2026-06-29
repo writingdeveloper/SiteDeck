@@ -86,3 +86,41 @@ export function geoScore(s) {
   const c = s.checks;
   return [c.title, c.description, c.canonical, c.openGraph, c.structuredData, s.llmsTxt].filter(Boolean).length;
 }
+
+const SPARK_CHARS = "▁▂▃▄▅▆▇█";
+
+/** Render a numeric series as a unicode block sparkline (text — pastes anywhere). */
+export function trendSparkText(values) {
+  if (!values || values.length === 0) return "";
+  const max = Math.max(...values, 1);
+  return values
+    .map((v) => SPARK_CHARS[Math.min(SPARK_CHARS.length - 1, Math.round((v / max) * (SPARK_CHARS.length - 1)))])
+    .join("");
+}
+
+/** Build a human-readable, localized metrics block for one site (clipboard copy).
+ *  `labels` supplies every localized string (incl. labels.period already
+ *  interpolated), so this stays DOM-free and unit-testable. Lines with no data
+ *  (e.g. no Search Console) are omitted; a null deltaPct drops the "(±%)" suffix. */
+export function buildCopyText(site, labels) {
+  const delta = (m) =>
+    m && typeof m.deltaPct === "number" ? ` (${m.deltaPct > 0 ? "+" : ""}${m.deltaPct}%)` : "";
+  const num = (m) => (m && typeof m.current === "number" ? m.current.toLocaleString("en-US") : "0");
+  const lines = [
+    `[${site.displayName}] (${labels.period})`,
+    `${labels.activeUsers}: ${num(site.activeUsers)}${delta(site.activeUsers)}`,
+    `${labels.sessions}: ${num(site.sessions)}${delta(site.sessions)}`,
+    `${labels.keyEvents}: ${num(site.keyEvents)}${delta(site.keyEvents)}`,
+    `${labels.aiSessions}: ${num(site.aiSessions)}${delta(site.aiSessions)}`,
+  ];
+  if (site.search) {
+    lines.push(
+      `${labels.search}: ${labels.impressions} ${site.search.impressions.toLocaleString("en-US")}` +
+        ` / ${labels.clicks} ${site.search.clicks.toLocaleString("en-US")}` +
+        ` / ${labels.position} ${site.search.position}`,
+    );
+  }
+  lines.push(`${labels.topPage}: ${site.topPage ?? "—"} · ${labels.topSource}: ${site.topSource ?? "—"}`);
+  lines.push(`${labels.trend}: ${trendSparkText(site.trend)}`);
+  return lines.join("\n");
+}

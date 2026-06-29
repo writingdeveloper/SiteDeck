@@ -2,7 +2,8 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore, buildCopyText } from "/format.js";
+import { analyzeSite } from "/strategy.js";
 
 // A change of this magnitude (%) is a "big mover" worth emphasizing for triage.
 const DELTA_BIG = 30;
@@ -13,7 +14,7 @@ const store = {
   set: (k, v) => { try { localStorage.setItem("sitedeck." + k, v); } catch {} },
 };
 
-const state = { data: null, insights: null, onpage: null, github: null, filter: "", sortKey: "activeUsers", sortDir: "desc" };
+const state = { data: null, insights: null, onpage: null, github: null, filter: "", sortKey: "activeUsers", sortDir: "desc", siteDetail: {} };
 
 const els = {
   period: document.getElementById("period"),
@@ -159,6 +160,143 @@ function sortedSites() {
   return sites;
 }
 
+function findSite(propertyId) {
+  return (state.data?.sites ?? []).find((s) => s.propertyId === propertyId) || null;
+}
+
+// 드로어 한 칸(채널/페이지/AI엔진 톱N 막대). rows: [{name, value}].
+function breakdownBlock(label, rows) {
+  if (!rows || !rows.length) return "";
+  const items = rows
+    .map((x) => `<li>${escapeHtml(x.name)} <span class="muted">${fmtNum(x.value)}</span></li>`)
+    .join("");
+  return `<div class="bd-block"><b>${escapeHtml(label)}</b><ul>${items}</ul></div>`;
+}
+
+function detailLoading() {
+  return `<div class="site-detail"><span class="muted">${t("detail.loading")}</span></div>`;
+}
+function detailError(propertyId) {
+  return `<div class="site-detail"><span class="status error">${t("detail.error")}</span> ` +
+    `<button class="link-btn" type="button" data-retry="${escapeHtml(propertyId)}">${t("detail.retry")}</button></div>`;
+}
+
+// finding id('ai-share-low') → i18n 키('strategy.aiShareLow').
+function strategyKey(id) {
+  return "strategy." + id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function renderStrategy(site, detail) {
+  const findings = analyzeSite(site, { channels: detail.channels });
+  const items = findings
+    .map(
+      (f) => `<li class="sev-${f.severity}"><span class="sev-dot" aria-hidden="true"></span>` +
+        `${escapeHtml(t(strategyKey(f.id), f.params))}</li>`,
+    )
+    .join("");
+  return `<div class="bd-block strategy"><b>${escapeHtml(t("strategy.title"))}</b><ul>${items}</ul></div>`;
+}
+
+function copyBtn(propertyId) {
+  return `<button class="copy-btn" type="button" data-copy="${escapeHtml(propertyId)}" ` +
+    `title="${escapeHtml(t("copy.button"))}" aria-label="${escapeHtml(t("copy.button"))}">⧉</button>`;
+}
+
+// buildCopyText에 주입할 localized 라벨(기간은 미리 보간).
+function copyLabels() {
+  return {
+    period: t("copy.period", { n: state.data.period }),
+    activeUsers: t("col.activeUsers"),
+    sessions: t("col.sessions"),
+    keyEvents: t("col.keyEvents"),
+    aiSessions: t("col.aiTraffic"),
+    search: t("copy.search"),
+    impressions: t("col.searchImpressions"),
+    clicks: t("col.searchClicks"),
+    position: t("col.searchPosition"),
+    topPage: t("col.topPage"),
+    topSource: t("col.topSource"),
+    trend: t("col.trend"),
+  };
+}
+
+function flashCopied(btn) {
+  if (!btn) return;
+  const prev = btn.textContent;
+  btn.textContent = "✓";
+  btn.classList.add("copied");
+  setTimeout(() => {
+    btn.textContent = prev;
+    btn.classList.remove("copied");
+  }, 1200);
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    flashCopied(btn);
+  } catch {
+    setStatus(t("copy.failed"), "error");
+  }
+}
+
+// 드로어 "전체 복사": 요약 블록 + 분해 + 전략.
+function buildDetailCopyText(site, detail) {
+  const block = (label, rows) =>
+    rows && rows.length ? `\n${label}:\n` + rows.map((x) => `  ${x.name}: ${x.value}`).join("\n") : "";
+  const findings = analyzeSite(site, { channels: detail.channels });
+  const strategy = `\n${t("strategy.title")}:\n` + findings.map((f) => `  - ${t(strategyKey(f.id), f.params)}`).join("\n");
+  return [
+    buildCopyText(site, copyLabels()),
+    block(t("detail.channels"), detail.channels),
+    block(t("detail.pages"), detail.pages),
+    block(t("detail.aiEngines"), detail.aiEngines),
+    strategy,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+// 드로어 본문(분해). Task 6에서 전략 섹션, Task 7에서 "전체 복사"가 여기 추가됨.
+function renderSiteDetailBody(site, detail) {
+  return `<div class="site-detail">` +
+    breakdownBlock(t("detail.channels"), detail.channels) +
+    breakdownBlock(t("detail.pages"), detail.pages) +
+    breakdownBlock(t("detail.aiEngines"), detail.aiEngines) +
+    renderStrategy(site, detail) +
+    `<div class="bd-block"><button class="link-btn" type="button" data-copyall="${escapeHtml(site.propertyId)}">${escapeHtml(t("detail.copyAll"))}</button></div>` +
+    `</div>`;
+}
+
+async function fetchSiteDetailInto(propertyId, cell) {
+  const key = `${propertyId}:${state.data.period}`;
+  cell.innerHTML = detailLoading();
+  try {
+    const res = await fetch(`/api/site-detail?propertyId=${encodeURIComponent(propertyId)}&period=${state.data.period}`);
+    const data = await res.json().catch(() => null);
+    if (!data || data.error || data.authenticated === false) throw new Error("detail failed");
+    state.siteDetail[key] = data;
+    cell.innerHTML = renderSiteDetailBody(findSite(propertyId), data);
+  } catch {
+    cell.innerHTML = detailError(propertyId);
+  }
+}
+
+// 행 펼치기/접기 + 최초 펼침 시 지연 로딩(캐시되면 즉시).
+function expandSiteRow(row) {
+  const detailRow = row.nextElementSibling;
+  if (!detailRow || !detailRow.classList.contains("site-detail-row")) return;
+  const willOpen = detailRow.hidden;
+  detailRow.hidden = !willOpen;
+  row.setAttribute("aria-expanded", String(willOpen));
+  if (!willOpen) return;
+  const propertyId = row.dataset.prop;
+  const cell = detailRow.firstElementChild;
+  const cached = state.siteDetail[`${propertyId}:${state.data.period}`];
+  if (cached) cell.innerHTML = renderSiteDetailBody(findSite(propertyId), cached);
+  else fetchSiteDetailInto(propertyId, cell);
+}
+
 function render() {
   els.headers.forEach((th) => {
     const key = th.dataset.sort;
@@ -178,8 +316,8 @@ function render() {
   const rows = sites
     .map(
       (s) => `
-      <tr>
-        <td class="name">${siteLink(s.displayName, gaUrl(s.propertyId))}</td>
+      <tr class="site-row" data-prop="${escapeHtml(s.propertyId)}" tabindex="0" role="button" aria-expanded="false">
+        <td class="name">${copyBtn(s.propertyId)}${siteLink(s.displayName, gaUrl(s.propertyId))}</td>
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
@@ -190,7 +328,8 @@ function render() {
         <td class="top" title="${escapeHtml(s.topPage ?? "")}">${escapeHtml(s.topPage ?? "—")}</td>
         <td class="top">${escapeHtml(s.topSource ?? "—")}</td>
         <td class="spark-cell" title="${escapeHtml(trendTip(s.trend))}">${sparkline(s.trend, `${s.displayName} ${t("col.trend")}`)}</td>
-      </tr>`,
+      </tr>
+      <tr class="site-detail-row" hidden><td colspan="11"></td></tr>`,
     )
     .join("");
   els.tbody.innerHTML = rows || (total && state.filter ? noMatchRow(11) : "");
@@ -202,6 +341,7 @@ const SETUP_URL = "https://github.com/writingdeveloper/SiteDeck#google-cloud-set
 async function load() {
   const period = els.period.value;
   setStatus(t("status.loading"), "info");
+  state.siteDetail = {};
   els.table.hidden = true;
   els.meta.textContent = "";
   try {
@@ -317,6 +457,43 @@ els.headers.forEach((th) => {
       toggleSort(th);
     }
   });
+});
+
+// 트래픽 행 펼치기(Repos 패턴 미러). 링크/버튼 클릭은 펼침을 트리거하지 않음.
+els.tbody.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("a")) return;
+  const copy = e.target.closest && e.target.closest("[data-copy]");
+  if (copy) {
+    e.stopPropagation();
+    const site = findSite(copy.getAttribute("data-copy"));
+    if (site) copyText(buildCopyText(site, copyLabels()), copy);
+    return;
+  }
+  const copyAll = e.target.closest && e.target.closest("[data-copyall]");
+  if (copyAll) {
+    const propertyId = copyAll.getAttribute("data-copyall");
+    const site = findSite(propertyId);
+    const detail = state.siteDetail[`${propertyId}:${state.data.period}`];
+    if (site && detail) copyText(buildDetailCopyText(site, detail), copyAll);
+    return;
+  }
+  const retry = e.target.closest && e.target.closest("[data-retry]");
+  if (retry) {
+    const propertyId = retry.getAttribute("data-retry");
+    const detailRow = retry.closest(".site-detail-row");
+    delete state.siteDetail[`${propertyId}:${state.data.period}`];
+    if (detailRow) fetchSiteDetailInto(propertyId, detailRow.firstElementChild);
+    return;
+  }
+  if (e.target.closest && e.target.closest("button")) return;
+  const row = e.target.closest && e.target.closest(".site-row");
+  if (row) expandSiteRow(row);
+});
+els.tbody.addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("site-row")) {
+    e.preventDefault();
+    expandSiteRow(e.target);
+  }
 });
 
 const tabs = document.querySelectorAll(".tab");

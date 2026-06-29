@@ -256,6 +256,30 @@ svg.spark {
   display: block;
 }
 
+/* Expandable traffic-row drawer: channel/page/AI-engine breakdowns. */
+.site-detail { display: flex; flex-wrap: wrap; gap: 1.5rem; padding: 0.5rem 0.75rem; }
+.bd-block { min-width: 12rem; }
+.bd-block > b { display: block; margin-bottom: 0.25rem; font-size: 0.85em; opacity: 0.8; }
+.bd-block ul { margin: 0; padding-left: 1rem; }
+.bd-block li { font-variant-numeric: tabular-nums; }
+.site-row { cursor: pointer; }
+.link-btn { background: none; border: none; color: var(--link, #4ea1ff); cursor: pointer; padding: 0; text-decoration: underline; font: inherit; }
+
+/* Per-site improvement-strategy section: severity-coded findings. */
+.strategy { min-width: 18rem; }
+.strategy ul { list-style: none; padding-left: 0; }
+.strategy li { display: flex; align-items: baseline; gap: 0.4rem; margin-bottom: 0.2rem; }
+.sev-dot { flex: none; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #8a8f98; }
+.sev-high .sev-dot { background: #e5484d; }
+.sev-medium .sev-dot { background: #f5a623; }
+.sev-low .sev-dot { background: #4ea1ff; }
+.sev-good .sev-dot { background: #30a46c; }
+
+/* Copy-to-text buttons: per-row metric copy + drawer "copy all". */
+.copy-btn { background: none; border: none; cursor: pointer; font-size: 0.9em; opacity: 0.5; padding: 0 0.3rem 0 0; color: inherit; }
+.copy-btn:hover { opacity: 1; }
+.copy-btn.copied { opacity: 1; color: #30a46c; }
+
 .delta {
   font-size: 12px;
   margin-left: 6px;

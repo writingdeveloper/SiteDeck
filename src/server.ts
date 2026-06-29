@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import open from 'open';
-import { GA_CONCURRENCY, OAUTH_CALLBACK_PATH, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
+import { DETAIL_TOPN, GA_CONCURRENCY, OAUTH_CALLBACK_PATH, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
 import {
   credentialsStatus,
   getAuthUrl,
@@ -18,7 +18,9 @@ import { getSettings, updateSettings, type Settings } from './settings';
 import { tServer } from './i18n';
 import { comparisonRanges } from './periods';
 import {
+  AI_DIMENSION_FILTER,
   fetchAiSessions,
+  fetchBreakdown,
   fetchDailySeries,
   fetchRange,
   fetchTopValue,
@@ -38,7 +40,7 @@ import {
 } from './github-runner';
 import { listenWithFallback } from './listen';
 import { escapeHtml } from './html';
-import { isReauthError, parsePeriod } from './http-helpers';
+import { isReauthError, isValidPropertyId, parsePeriod } from './http-helpers';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -269,6 +271,35 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       json(res, 200, { authenticated: true, ...(await getOnPageReport(await getClient())) });
+    } catch (err) {
+      if (isReauthError(err)) {
+        json(res, 200, { authenticated: false, authUrl: '/oauth/start', reason: 'reauth_required' });
+        return;
+      }
+      json(res, 500, errorBody(err));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/site-detail') {
+    try {
+      if (!(await isAuthenticated())) {
+        json(res, 200, { authenticated: false, authUrl: '/oauth/start' });
+        return;
+      }
+      const propertyId = url.searchParams.get('propertyId');
+      if (!isValidPropertyId(propertyId)) {
+        json(res, 400, { error: { code: 'bad_request', detail: 'invalid propertyId' } });
+        return;
+      }
+      const range = comparisonRanges(parsePeriod(url.searchParams.get('period'))).current;
+      const auth = await getClient();
+      const [channels, pages, aiEngines] = await Promise.all([
+        fetchBreakdown(auth, propertyId, range, 'sessionDefaultChannelGroup', 'sessions', DETAIL_TOPN),
+        fetchBreakdown(auth, propertyId, range, 'pagePath', 'screenPageViews', DETAIL_TOPN),
+        fetchBreakdown(auth, propertyId, range, 'sessionSource', 'sessions', DETAIL_TOPN, AI_DIMENSION_FILTER),
+      ]);
+      json(res, 200, { authenticated: true, channels, pages, aiEngines });
     } catch (err) {
       if (isReauthError(err)) {
         json(res, 200, { authenticated: false, authUrl: '/oauth/start', reason: 'reauth_required' });

@@ -54,6 +54,27 @@ export async function listProperties(auth: OAuth2Client): Promise<PropertyRef[]>
 const AI_SOURCE_REGEX =
   'perplexity\\.ai|chatgpt\\.com|chat\\.openai\\.com|claude\\.ai|gemini\\.google\\.com|copilot\\.microsoft\\.com|deepseek\\.com|you\\.com';
 
+/** GA4 dimensionFilter matching AI answer-engine referred sessions. Reused by
+ *  fetchAiSessions and the AI-engine breakdown so the definition stays in one place. */
+export const AI_DIMENSION_FILTER = {
+  orGroup: {
+    expressions: [
+      {
+        filter: {
+          fieldName: 'sessionDefaultChannelGroup',
+          stringFilter: { matchType: 'EXACT', value: 'AI Assistant' },
+        },
+      },
+      {
+        filter: {
+          fieldName: 'sessionSource',
+          stringFilter: { matchType: 'FULL_REGEXP', value: AI_SOURCE_REGEX },
+        },
+      },
+    ],
+  },
+} as const;
+
 /** Sessions referred by AI answer engines for one property over a date range. */
 export async function fetchAiSessions(
   auth: OAuth2Client,
@@ -64,24 +85,7 @@ export async function fetchAiSessions(
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
     metrics: [{ name: 'sessions' }],
-    dimensionFilter: {
-      orGroup: {
-        expressions: [
-          {
-            filter: {
-              fieldName: 'sessionDefaultChannelGroup',
-              stringFilter: { matchType: 'EXACT', value: 'AI Assistant' },
-            },
-          },
-          {
-            filter: {
-              fieldName: 'sessionSource',
-              stringFilter: { matchType: 'FULL_REGEXP', value: AI_SOURCE_REGEX },
-            },
-          },
-        ],
-      },
-    },
+    dimensionFilter: AI_DIMENSION_FILTER as never,
   });
   return Number(report.rows?.[0]?.metricValues?.[0]?.value ?? 0);
 }
@@ -169,4 +173,46 @@ export async function listSiteUrls(auth: OAuth2Client, props?: PropertyRef[]): P
     }),
   );
   return out;
+}
+
+export interface BreakdownRow {
+  name: string;
+  value: number;
+}
+
+/** Map a runReport response (one dimension + one metric) to {name, value} rows.
+ *  Pure — split out so it can be unit-tested without the GA client. */
+export function mapBreakdownRows(
+  rows:
+    | { dimensionValues?: ({ value?: string | null } | undefined)[] | null; metricValues?: ({ value?: string | null } | undefined)[] | null }[]
+    | null
+    | undefined,
+): BreakdownRow[] {
+  return (rows ?? []).map((r) => ({
+    name: r.dimensionValues?.[0]?.value ?? '(not set)',
+    value: Number(r.metricValues?.[0]?.value ?? 0),
+  }));
+}
+
+/** Top-N values of `metric` by `dimension` for a property over a range (descending),
+ *  optionally constrained by a dimensionFilter (e.g. AI_DIMENSION_FILTER). */
+export async function fetchBreakdown(
+  auth: OAuth2Client,
+  propertyId: string,
+  range: DateRange,
+  dimension: string,
+  metric: string,
+  limit: number,
+  dimensionFilter?: unknown,
+): Promise<BreakdownRow[]> {
+  const [report] = await data(auth).runReport({
+    property: `properties/${propertyId}`,
+    dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
+    dimensions: [{ name: dimension }],
+    metrics: [{ name: metric }],
+    orderBys: [{ metric: { metricName: metric }, desc: true }],
+    limit,
+    ...(dimensionFilter ? { dimensionFilter: dimensionFilter as never } : {}),
+  });
+  return mapBreakdownRows(report.rows);
 }

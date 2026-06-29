@@ -11,6 +11,8 @@ import {
   deltaClass,
   sortValue,
   geoScore,
+  buildCopyText,
+  trendSparkText,
 } from '../public/format.js';
 
 describe('escapeCsvField', () => {
@@ -181,5 +183,62 @@ describe('geoScore', () => {
       checks: makeChecks({ title: true, description: true, canonical: true, openGraph: true, structuredData: true }),
       llmsTxt: true,
     })).toBe(6);
+  });
+});
+
+const LABELS = {
+  period: 'Last 28 days',
+  activeUsers: 'Active users',
+  sessions: 'Sessions',
+  keyEvents: 'Key events',
+  aiSessions: 'AI referrals',
+  search: 'Search',
+  impressions: 'Impr',
+  clicks: 'Clicks',
+  position: 'Pos',
+  topPage: 'Top page',
+  topSource: 'Top channel',
+  trend: 'Trend',
+};
+const cmd = (current: number, deltaPct: number | null) => ({ current, previous: 0, deltaPct });
+
+describe('trendSparkText', () => {
+  it('수열을 유니코드 블록으로 (낮음→높음)', () => {
+    expect(trendSparkText([0, 100])).toBe('▁█');
+    expect(trendSparkText([0, 50, 100])).toBe('▁▅█');
+  });
+  it('빈/누락 수열은 빈 문자열', () => {
+    expect(trendSparkText([])).toBe('');
+    expect(trendSparkText(null)).toBe('');
+  });
+});
+
+describe('buildCopyText', () => {
+  const s = {
+    displayName: 'Soursea',
+    activeUsers: cmd(1234, 5.2),
+    sessions: cmd(2345, -1.1),
+    keyEvents: cmd(120, 0),
+    aiSessions: cmd(88, 12),
+    trend: [0, 50, 100],
+    topPage: '/pricing',
+    topSource: 'Organic Search',
+    search: { clicks: 210, impressions: 5000, position: 8.3 },
+  };
+  it('델타·검색 포함 라벨 블록 렌더', () => {
+    const txt = buildCopyText(s, LABELS);
+    expect(txt).toContain('[Soursea] (Last 28 days)');
+    expect(txt).toContain('Active users: 1,234 (+5.2%)');
+    expect(txt).toContain('Sessions: 2,345 (-1.1%)');
+    expect(txt).toContain('AI referrals: 88 (+12%)');
+    expect(txt).toContain('Search: Impr 5,000 / Clicks 210 / Pos 8.3');
+    expect(txt).toContain('Top page: /pricing · Top channel: Organic Search');
+    expect(txt).toContain('Trend: ▁▅█');
+  });
+  it('검색 데이터 없으면 검색 줄 생략', () => {
+    expect(buildCopyText({ ...s, search: null }, LABELS)).not.toContain('Search:');
+  });
+  it('deltaPct가 null이면 괄호 생략', () => {
+    expect(buildCopyText({ ...s, activeUsers: cmd(1234, null) }, LABELS)).toContain('Active users: 1,234\n');
   });
 });
