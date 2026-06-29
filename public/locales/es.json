@@ -124,5 +124,14 @@
   "detail.aiEngines": "Motores de IA",
   "detail.loading": "Cargando detalles…",
   "detail.error": "No se pudieron cargar los detalles.",
-  "detail.retry": "Reintentar"
+  "detail.retry": "Reintentar",
+  "strategy.title": "Estrategia de mejora",
+  "strategy.deltaDrop": "Usuarios activos cayeron {pct}% frente al periodo anterior — revisa cambios o campañas finalizadas",
+  "strategy.trendDown": "La tendencia diaria baja — revisa la frescura del contenido y los canales de adquisición",
+  "strategy.aiShareLow": "Baja proporción de IA ({pct}%) — refuerza el GEO con llms.txt y datos estructurados",
+  "strategy.ctrLow": "Baja tasa de clics frente a impresiones ({pct}%) — mejora títulos y metadescripciones",
+  "strategy.channelConcentrated": "Tráfico concentrado en '{name}' ({pct}%) — diversifica los canales",
+  "strategy.positionWeak": "Posición media de búsqueda {pos} — refuerza enlaces internos y contenido",
+  "strategy.conversionLow": "Pocos eventos clave por sesión ({pct}%) — revisa CTAs y el embudo",
+  "strategy.allGood": "Métricas principales saludables — sin avisos"
 }

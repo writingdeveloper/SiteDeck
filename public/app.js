@@ -3,6 +3,7 @@
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
 import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore } from "/format.js";
+import { analyzeSite } from "/strategy.js";
 
 // A change of this magnitude (%) is a "big mover" worth emphasizing for triage.
 const DELTA_BIG = 30;
@@ -180,12 +181,29 @@ function detailError(propertyId) {
     `<button class="link-btn" type="button" data-retry="${escapeHtml(propertyId)}">${t("detail.retry")}</button></div>`;
 }
 
+// finding id('ai-share-low') → i18n 키('strategy.aiShareLow').
+function strategyKey(id) {
+  return "strategy." + id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function renderStrategy(site, detail) {
+  const findings = analyzeSite(site, { channels: detail.channels });
+  const items = findings
+    .map(
+      (f) => `<li class="sev-${f.severity}"><span class="sev-dot" aria-hidden="true"></span>` +
+        `${escapeHtml(t(strategyKey(f.id), f.params))}</li>`,
+    )
+    .join("");
+  return `<div class="bd-block strategy"><b>${escapeHtml(t("strategy.title"))}</b><ul>${items}</ul></div>`;
+}
+
 // 드로어 본문(분해). Task 6에서 전략 섹션, Task 7에서 "전체 복사"가 여기 추가됨.
 function renderSiteDetailBody(site, detail) {
   return `<div class="site-detail">` +
     breakdownBlock(t("detail.channels"), detail.channels) +
     breakdownBlock(t("detail.pages"), detail.pages) +
     breakdownBlock(t("detail.aiEngines"), detail.aiEngines) +
+    renderStrategy(site, detail) +
     `</div>`;
 }
 

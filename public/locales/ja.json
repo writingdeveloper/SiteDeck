@@ -124,5 +124,14 @@
   "detail.aiEngines": "AIエンジン",
   "detail.loading": "詳細を読み込み中…",
   "detail.error": "詳細を読み込めませんでした。",
-  "detail.retry": "再試行"
+  "detail.retry": "再試行",
+  "strategy.title": "改善戦略",
+  "strategy.deltaDrop": "アクティブユーザーが前期比{pct}%減 — 最近の変更やキャンペーン終了を確認",
+  "strategy.trendDown": "日次トレンドが下降 — コンテンツの鮮度と流入経路を確認",
+  "strategy.aiShareLow": "AI経由の割合が低い（{pct}%） — llms.txtと構造化データでGEOを強化",
+  "strategy.ctrLow": "表示に対しクリック率が低い（{pct}%） — タイトルとメタ説明を改善",
+  "strategy.channelConcentrated": "流入が「{name}」チャネルに集中（{pct}%） — チャネルの多様化を検討",
+  "strategy.positionWeak": "平均検索順位{pos}位 — 内部リンクとコンテンツを強化",
+  "strategy.conversionLow": "セッション当たりの主要イベントが少ない（{pct}%） — CTAと導線を点検",
+  "strategy.allGood": "主要指標は良好 — 警告なし"
 }

@@ -124,5 +124,14 @@
   "detail.aiEngines": "AI engines",
   "detail.loading": "Loading details…",
   "detail.error": "Couldn't load details.",
-  "detail.retry": "Retry"
+  "detail.retry": "Retry",
+  "strategy.title": "Improvement strategy",
+  "strategy.deltaDrop": "Active users dropped {pct}% vs. the previous period — check recent changes or ended campaigns",
+  "strategy.trendDown": "Daily trend is declining — review content freshness and acquisition channels",
+  "strategy.aiShareLow": "Low AI-referred share ({pct}%) — strengthen GEO with llms.txt and structured data",
+  "strategy.ctrLow": "Low click-through vs. impressions ({pct}%) — improve titles and meta descriptions",
+  "strategy.channelConcentrated": "Traffic concentrated in '{name}' ({pct}%) — diversify acquisition channels",
+  "strategy.positionWeak": "Average search position {pos} — strengthen internal links and content",
+  "strategy.conversionLow": "Few key events per session ({pct}%) — review CTAs and the conversion funnel",
+  "strategy.allGood": "Core metrics look healthy — no warnings"
 }
