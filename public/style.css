@@ -275,6 +275,11 @@ svg.spark {
 .sev-low .sev-dot { background: #4ea1ff; }
 .sev-good .sev-dot { background: #30a46c; }
 
+/* Copy-to-text buttons: per-row metric copy + drawer "copy all". */
+.copy-btn { background: none; border: none; cursor: pointer; font-size: 0.9em; opacity: 0.5; padding: 0 0.3rem 0 0; color: inherit; }
+.copy-btn:hover { opacity: 1; }
+.copy-btn.copied { opacity: 1; color: #30a46c; }
+
 .delta {
   font-size: 12px;
   margin-left: 6px;

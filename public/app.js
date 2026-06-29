@@ -2,7 +2,7 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore, buildCopyText } from "/format.js";
 import { analyzeSite } from "/strategy.js";
 
 // A change of this magnitude (%) is a "big mover" worth emphasizing for triage.
@@ -197,6 +197,66 @@ function renderStrategy(site, detail) {
   return `<div class="bd-block strategy"><b>${escapeHtml(t("strategy.title"))}</b><ul>${items}</ul></div>`;
 }
 
+function copyBtn(propertyId) {
+  return `<button class="copy-btn" type="button" data-copy="${escapeHtml(propertyId)}" ` +
+    `title="${escapeHtml(t("copy.button"))}" aria-label="${escapeHtml(t("copy.button"))}">⧉</button>`;
+}
+
+// buildCopyText에 주입할 localized 라벨(기간은 미리 보간).
+function copyLabels() {
+  return {
+    period: t("copy.period", { n: state.data.period }),
+    activeUsers: t("col.activeUsers"),
+    sessions: t("col.sessions"),
+    keyEvents: t("col.keyEvents"),
+    aiSessions: t("col.aiTraffic"),
+    search: t("copy.search"),
+    impressions: t("col.searchImpressions"),
+    clicks: t("col.searchClicks"),
+    position: t("col.searchPosition"),
+    topPage: t("col.topPage"),
+    topSource: t("col.topSource"),
+    trend: t("col.trend"),
+  };
+}
+
+function flashCopied(btn) {
+  if (!btn) return;
+  const prev = btn.textContent;
+  btn.textContent = "✓";
+  btn.classList.add("copied");
+  setTimeout(() => {
+    btn.textContent = prev;
+    btn.classList.remove("copied");
+  }, 1200);
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    flashCopied(btn);
+  } catch {
+    setStatus(t("copy.failed"), "error");
+  }
+}
+
+// 드로어 "전체 복사": 요약 블록 + 분해 + 전략.
+function buildDetailCopyText(site, detail) {
+  const block = (label, rows) =>
+    rows && rows.length ? `\n${label}:\n` + rows.map((x) => `  ${x.name}: ${x.value}`).join("\n") : "";
+  const findings = analyzeSite(site, { channels: detail.channels });
+  const strategy = `\n${t("strategy.title")}:\n` + findings.map((f) => `  - ${t(strategyKey(f.id), f.params)}`).join("\n");
+  return [
+    buildCopyText(site, copyLabels()),
+    block(t("detail.channels"), detail.channels),
+    block(t("detail.pages"), detail.pages),
+    block(t("detail.aiEngines"), detail.aiEngines),
+    strategy,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 // 드로어 본문(분해). Task 6에서 전략 섹션, Task 7에서 "전체 복사"가 여기 추가됨.
 function renderSiteDetailBody(site, detail) {
   return `<div class="site-detail">` +
@@ -204,6 +264,7 @@ function renderSiteDetailBody(site, detail) {
     breakdownBlock(t("detail.pages"), detail.pages) +
     breakdownBlock(t("detail.aiEngines"), detail.aiEngines) +
     renderStrategy(site, detail) +
+    `<div class="bd-block"><button class="link-btn" type="button" data-copyall="${escapeHtml(site.propertyId)}">${escapeHtml(t("detail.copyAll"))}</button></div>` +
     `</div>`;
 }
 
@@ -256,7 +317,7 @@ function render() {
     .map(
       (s) => `
       <tr class="site-row" data-prop="${escapeHtml(s.propertyId)}" tabindex="0" role="button" aria-expanded="false">
-        <td class="name">${siteLink(s.displayName, gaUrl(s.propertyId))}</td>
+        <td class="name">${copyBtn(s.propertyId)}${siteLink(s.displayName, gaUrl(s.propertyId))}</td>
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
@@ -401,6 +462,21 @@ els.headers.forEach((th) => {
 // 트래픽 행 펼치기(Repos 패턴 미러). 링크/버튼 클릭은 펼침을 트리거하지 않음.
 els.tbody.addEventListener("click", (e) => {
   if (e.target.closest && e.target.closest("a")) return;
+  const copy = e.target.closest && e.target.closest("[data-copy]");
+  if (copy) {
+    e.stopPropagation();
+    const site = findSite(copy.getAttribute("data-copy"));
+    if (site) copyText(buildCopyText(site, copyLabels()), copy);
+    return;
+  }
+  const copyAll = e.target.closest && e.target.closest("[data-copyall]");
+  if (copyAll) {
+    const propertyId = copyAll.getAttribute("data-copyall");
+    const site = findSite(propertyId);
+    const detail = state.siteDetail[`${propertyId}:${state.data.period}`];
+    if (site && detail) copyText(buildDetailCopyText(site, detail), copyAll);
+    return;
+  }
   const retry = e.target.closest && e.target.closest("[data-retry]");
   if (retry) {
     const propertyId = retry.getAttribute("data-retry");
