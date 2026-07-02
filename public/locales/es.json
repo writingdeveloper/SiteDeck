@@ -146,5 +146,7 @@
   "copy.titlePerformance": "# SiteDeck Rendimiento ({count} sitios)",
   "copy.titleGeo": "# SiteDeck GEO ({count} sitios)",
   "copy.portfolio": "Portafolio: {active} activos · {sessions} sesiones · {ai} IA ({aiPct}%) · {declining} en descenso",
-  "copy.strategyHeading": "## Estrategia de mejora"
+  "copy.strategyHeading": "## Estrategia de mejora",
+  "detail.history": "Historial (semanal)",
+  "copy.wowHeading": "## Semana contra semana (WoW)"
 }

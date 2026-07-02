@@ -146,5 +146,7 @@
   "copy.titlePerformance": "# SiteDeck 성능 ({count}개 사이트)",
   "copy.titleGeo": "# SiteDeck GEO ({count}개 사이트)",
   "copy.portfolio": "포트폴리오: 활성 {active} · 세션 {sessions} · AI {ai} ({aiPct}%) · 하락 {declining}개",
-  "copy.strategyHeading": "## 개선 전략"
+  "copy.strategyHeading": "## 개선 전략",
+  "detail.history": "히스토리 (주간)",
+  "copy.wowHeading": "## 주간 대비 (WoW)"
 }

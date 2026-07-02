@@ -146,5 +146,7 @@
   "copy.titlePerformance": "# SiteDeck 性能（{count} 个站点）",
   "copy.titleGeo": "# SiteDeck GEO（{count} 个站点）",
   "copy.portfolio": "组合概览：活跃 {active} · 会话 {sessions} · AI {ai}（{aiPct}%）· 下降 {declining} 个",
-  "copy.strategyHeading": "## 改进策略"
+  "copy.strategyHeading": "## 改进策略",
+  "detail.history": "历史（每周）",
+  "copy.wowHeading": "## 环比上周 (WoW)"
 }

@@ -258,13 +258,32 @@ function buildDetailCopyText(site, detail) {
     .join("\n");
 }
 
-// 드로어 본문(분해). Task 6에서 전략 섹션, Task 7에서 "전체 복사"가 여기 추가됨.
+// 최근 주간 시리즈(스파크라인) + WoW %를 4개 지표로 보여주는 드로어 히스토리 섹션.
+function historyBlock(history) {
+  if (!history) return "";
+  const wowStr = (v) => (typeof v === "number" ? `${v > 0 ? "+" : ""}${v}%` : "—");
+  const rows = [
+    ["activeUsers", "col.activeUsers"],
+    ["sessions", "col.sessions"],
+    ["keyEvents", "col.keyEvents"],
+    ["aiSessions", "col.aiTraffic"],
+  ]
+    .map(
+      ([k, key]) =>
+        `<li>${escapeHtml(t(key))} <span class="muted">${escapeHtml(trendSparkText(history.weekly[k]))} · WoW ${wowStr(history.wow[k])}</span></li>`,
+    )
+    .join("");
+  return `<div class="bd-block"><b>${escapeHtml(t("detail.history"))}</b><ul>${rows}</ul></div>`;
+}
+
+// 드로어 본문(분해 · 전략 · 히스토리 · 전체 복사).
 function renderSiteDetailBody(site, detail) {
   return `<div class="site-detail">` +
     breakdownBlock(t("detail.channels"), detail.channels) +
     breakdownBlock(t("detail.pages"), detail.pages) +
     breakdownBlock(t("detail.aiEngines"), detail.aiEngines) +
     renderStrategy(site, detail) +
+    historyBlock(detail.history) +
     `<div class="bd-block"><button class="link-btn" type="button" data-copyall="${escapeHtml(site.propertyId)}">${escapeHtml(t("detail.copyAll"))}</button></div>` +
     `</div>`;
 }
@@ -1124,7 +1143,16 @@ function trafficMarkdown() {
     })
     .filter(Boolean);
   const strategy = stratLines.length ? `\n\n${t("copy.strategyHeading")}\n${stratLines.join("\n")}` : "";
-  return `${t("copy.aiPrompt")}\n\n${title}\n${portfolio}\n\n${toMarkdownTable(headers, rows)}${strategy}`;
+  const wowLines = sites
+    .map((s) => {
+      const h = s.history;
+      if (!h) return null;
+      const p = (v) => (typeof v === "number" ? `${v > 0 ? "+" : ""}${v}%` : "—");
+      return `- ${s.displayName}: ${t("col.activeUsers")} ${p(h.wow.activeUsers)} · ${t("col.sessions")} ${p(h.wow.sessions)} · ${t("col.aiTraffic")} ${p(h.wow.aiSessions)}`;
+    })
+    .filter(Boolean);
+  const wowSection = wowLines.length ? `\n\n${t("copy.wowHeading")}\n${wowLines.join("\n")}` : "";
+  return `${t("copy.aiPrompt")}\n\n${title}\n${portfolio}\n\n${toMarkdownTable(headers, rows)}${strategy}${wowSection}`;
 }
 
 function performanceMarkdown() {

@@ -146,5 +146,7 @@
   "copy.titlePerformance": "# SiteDeck パフォーマンス（{count}サイト）",
   "copy.titleGeo": "# SiteDeck GEO（{count}サイト）",
   "copy.portfolio": "ポートフォリオ: アクティブ {active} · セッション {sessions} · AI {ai}（{aiPct}%）· 減少 {declining}件",
-  "copy.strategyHeading": "## 改善戦略"
+  "copy.strategyHeading": "## 改善戦略",
+  "detail.history": "履歴（週次）",
+  "copy.wowHeading": "## 前週比 (WoW)"
 }

@@ -146,5 +146,7 @@
   "copy.titlePerformance": "# SiteDeck Performance ({count} sites)",
   "copy.titleGeo": "# SiteDeck GEO ({count} sites)",
   "copy.portfolio": "Portfolio: {active} active · {sessions} sessions · {ai} AI ({aiPct}%) · {declining} declining",
-  "copy.strategyHeading": "## Improvement strategy"
+  "copy.strategyHeading": "## Improvement strategy",
+  "detail.history": "History (weekly)",
+  "copy.wowHeading": "## Week-over-week (WoW)"
 }
