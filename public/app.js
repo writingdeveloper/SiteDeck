@@ -2,7 +2,7 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore, buildCopyText } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore, buildCopyText, toMarkdownTable, portfolioTotals, trendSparkText } from "/format.js";
 import { analyzeSite } from "/strategy.js";
 
 // A change of this magnitude (%) is a "big mover" worth emphasizing for triage.
@@ -22,6 +22,7 @@ const els = {
   autorefresh: document.getElementById("autorefresh"),
   refresh: document.getElementById("refresh"),
   export: document.getElementById("export"),
+  copytext: document.getElementById("copytext"),
   status: document.getElementById("status"),
   table: document.getElementById("table"),
   tbody: document.querySelector("#table tbody"),
@@ -1094,6 +1095,66 @@ els.export.addEventListener("click", () => {
       });
     downloadCsv("sitedeck-geo.csv", toCsv(headers, rows));
   }
+});
+
+// MetricDelta → "1,234 (-33.3%)" (delta 없으면 값만). 표 셀용.
+function mdCell(m) {
+  if (!m || typeof m.current !== "number") return "";
+  const d = typeof m.deltaPct === "number" ? ` (${m.deltaPct > 0 ? "+" : ""}${m.deltaPct}%)` : "";
+  return `${m.current.toLocaleString(getLocale())}${d}`;
+}
+
+function trafficMarkdown() {
+  const sites = sortedSites();
+  const tot = portfolioTotals(sites);
+  const nf = (n) => n.toLocaleString(getLocale());
+  const headers = [t("col.site"), t("col.activeUsers"), t("col.sessions"), t("col.keyEvents"), t("col.aiTraffic"), t("col.searchImpressions"), t("col.searchClicks"), t("col.searchPosition"), t("col.topPage"), t("col.topSource"), t("col.trend")];
+  const rows = sites.map((s) => [
+    s.displayName, mdCell(s.activeUsers), mdCell(s.sessions), mdCell(s.keyEvents), mdCell(s.aiSessions),
+    s.search?.impressions ?? "", s.search?.clicks ?? "",
+    s.search && s.search.impressions > 0 ? s.search.position : "",
+    s.topPage ?? "", s.topSource ?? "", trendSparkText(s.trend),
+  ]);
+  const title = t("copy.titleTraffic", { n: state.data.period, count: sites.length, when: fmtWhen(state.data.generatedAt) });
+  const portfolio = t("copy.portfolio", { active: nf(tot.activeUsers), sessions: nf(tot.sessions), ai: nf(tot.aiSessions), aiPct: tot.aiSharePct, declining: tot.declining });
+  const stratLines = sites
+    .map((s) => {
+      const findings = analyzeSite(s).filter((f) => f.severity !== "good");
+      return findings.length ? `- ${s.displayName}: ${findings.map((f) => t(strategyKey(f.id), f.params)).join("; ")}` : null;
+    })
+    .filter(Boolean);
+  const strategy = stratLines.length ? `\n\n${t("copy.strategyHeading")}\n${stratLines.join("\n")}` : "";
+  return `${t("copy.aiPrompt")}\n\n${title}\n${portfolio}\n\n${toMarkdownTable(headers, rows)}${strategy}`;
+}
+
+function performanceMarkdown() {
+  const sites = (state.insights.sites ?? []).filter((s) => matchesFilter(s.displayName, state.filter));
+  const headers = [t("col.site"), t("col.performance"), t("col.accessibility"), t("col.bestPractices"), t("col.seo"), t("col.lcp"), t("col.cls"), t("col.inp"), t("col.measuredAt")];
+  const rows = sites.map((s) => {
+    const l = s.latest ?? {};
+    return [s.displayName, l.performance ?? "", l.accessibility ?? "", l.bestPractices ?? "", l.seo ?? "", cwvText(l.lcpMs, "lcp"), cwvText(l.cls, "cls"), cwvText(l.inpMs, "inp"), l.ts ? fmtWhen(l.ts) : ""];
+  });
+  return `${t("copy.aiPrompt")}\n\n${t("copy.titlePerformance", { count: sites.length })}\n\n${toMarkdownTable(headers, rows)}`;
+}
+
+function geoMarkdown() {
+  const sites = (state.onpage.sites ?? []).filter((s) => matchesFilter(s.displayName, state.filter));
+  const headers = [t("col.site"), t("col.title"), t("col.description"), t("col.canonical"), t("col.openGraph"), t("col.structuredData"), t("col.llmsTxt"), t("col.geoScore")];
+  const chk = (v) => (v ? "✓" : "✗");
+  const rows = sites.map((s) => {
+    const c = s.checks;
+    if (!c) return [s.displayName, "—", "—", "—", "—", "—", "—", ""];
+    return [s.displayName, chk(c.title), chk(c.description), chk(c.canonical), chk(c.openGraph), chk(c.structuredData), chk(s.llmsTxt), `${geoScore(s)}/6`];
+  });
+  return `${t("copy.aiPrompt")}\n\n${t("copy.titleGeo", { count: sites.length })}\n\n${toMarkdownTable(headers, rows)}`;
+}
+
+els.copytext.addEventListener("click", () => {
+  let text = null;
+  if (!views.traffic.hidden && state.data) text = trafficMarkdown();
+  else if (!views.performance.hidden && state.insights) text = performanceMarkdown();
+  else if (!views.geo.hidden && state.onpage) text = geoMarkdown();
+  if (text) copyText(text, els.copytext);
 });
 
 // --- Auto-refresh the visible data view ---

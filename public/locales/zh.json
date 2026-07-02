@@ -138,5 +138,12 @@
   "strategy.channelConcentrated": "流量集中于“{name}”渠道（{pct}%） — 考虑渠道多元化",
   "strategy.positionWeak": "平均搜索排名第{pos}位 — 加强内部链接与内容",
   "strategy.conversionLow": "每次会话的关键事件偏少（{pct}%） — 检查 CTA 与转化漏斗",
-  "strategy.allGood": "核心指标良好 — 暂无警告"
+  "strategy.allGood": "核心指标良好 — 暂无警告",
+  "copy.textButton": "复制为文本",
+  "copy.aiPrompt": "以下是我的网站分析数据。请评估整体状况并提出优先级最高的改进建议：",
+  "copy.titleTraffic": "# SiteDeck 流量 — 最近 {n} 天（{count} 个站点，截至 {when}）",
+  "copy.titlePerformance": "# SiteDeck 性能（{count} 个站点）",
+  "copy.titleGeo": "# SiteDeck GEO（{count} 个站点）",
+  "copy.portfolio": "组合概览：活跃 {active} · 会话 {sessions} · AI {ai}（{aiPct}%）· 下降 {declining} 个",
+  "copy.strategyHeading": "## 改进策略"
 }

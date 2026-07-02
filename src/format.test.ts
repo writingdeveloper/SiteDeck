@@ -13,6 +13,8 @@ import {
   geoScore,
   buildCopyText,
   trendSparkText,
+  toMarkdownTable,
+  portfolioTotals,
 } from '../public/format.js';
 
 describe('escapeCsvField', () => {
@@ -240,5 +242,46 @@ describe('buildCopyText', () => {
   });
   it('deltaPct가 null이면 괄호 생략', () => {
     expect(buildCopyText({ ...s, activeUsers: cmd(1234, null) }, LABELS)).toContain('Active users: 1,234\n');
+  });
+});
+
+describe('toMarkdownTable', () => {
+  it('헤더 + 구분선 + 행을 만든다', () => {
+    expect(toMarkdownTable(['A', 'B'], [['1', '2'], ['3', '4']]))
+      .toBe('| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |');
+  });
+  it('셀의 파이프를 이스케이프하고 개행을 공백으로', () => {
+    expect(toMarkdownTable(['H'], [['a|b'], ['c\nd']]))
+      .toBe('| H |\n| --- |\n| a\\|b |\n| c d |');
+  });
+  it('null/undefined 셀은 빈칸, 행이 없으면 헤더만', () => {
+    expect(toMarkdownTable(['H'], [])).toBe('| H |\n| --- |');
+    expect(toMarkdownTable(['H'], [[null], [undefined]])).toBe('| H |\n| --- |\n|  |\n|  |');
+  });
+});
+
+describe('portfolioTotals', () => {
+  const md = (current: number, deltaPct: number | null = 0) => ({ current, previous: 0, deltaPct });
+  it('지표 합계와 AI 비중(소수 1자리)을 계산', () => {
+    const sites = [
+      { activeUsers: md(10, 5), sessions: md(100, 0), keyEvents: md(2, 0), aiSessions: md(3, 0) },
+      { activeUsers: md(20, 1), sessions: md(100, 0), keyEvents: md(4, 0), aiSessions: md(0, 0) },
+    ];
+    expect(portfolioTotals(sites)).toEqual({
+      activeUsers: 30, sessions: 200, keyEvents: 6, aiSessions: 3, declining: 0, aiSharePct: 1.5,
+    });
+  });
+  it('활성 델타가 음수인 사이트만 하락으로 카운트(null 제외)', () => {
+    const sites = [
+      { activeUsers: md(10, -5), sessions: md(10, 0), keyEvents: md(0, 0), aiSessions: md(0, 0) },
+      { activeUsers: md(10, null), sessions: md(10, 0), keyEvents: md(0, 0), aiSessions: md(0, 0) },
+      { activeUsers: md(10, 3), sessions: md(10, 0), keyEvents: md(0, 0), aiSessions: md(0, 0) },
+    ];
+    expect(portfolioTotals(sites).declining).toBe(1);
+  });
+  it('빈 배열은 0 (0으로 나누기 없음)', () => {
+    expect(portfolioTotals([])).toEqual({
+      activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0, declining: 0, aiSharePct: 0,
+    });
   });
 });
