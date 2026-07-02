@@ -18,6 +18,7 @@ function site(overrides: Record<string, unknown> = {}) {
     topPage: '/',
     topSource: 'Organic',
     search: { clicks: 50, impressions: 500, position: 5 }, // 10% CTR, 5위
+    history: null,
     ...overrides,
   };
 }
@@ -68,5 +69,16 @@ describe('analyzeSite', () => {
     const f = analyzeSite(site({ activeUsers: md(700, -30), keyEvents: md(5, 0) }));
     const ids = f.map((x) => x.id);
     expect(ids.indexOf('delta-drop')).toBeLessThan(ids.indexOf('conversion-low'));
+  });
+});
+
+describe('trend-decline rule', () => {
+  it('fires when history.declineWeeks >= 3', () => {
+    const f = analyzeSite(site({ history: { wow: {}, declineWeeks: 3 } }));
+    expect(f.some((x) => x.id === 'trend-decline' && x.severity === 'medium')).toBe(true);
+  });
+  it('does not fire below the threshold or without history', () => {
+    expect(analyzeSite(site({ history: { wow: {}, declineWeeks: 2 } })).some((x) => x.id === 'trend-decline')).toBe(false);
+    expect(analyzeSite(site()).some((x) => x.id === 'trend-decline')).toBe(false);
   });
 });

@@ -139,6 +139,7 @@
   "strategy.positionWeak": "평균 검색 순위 {pos}위 — 내부 링크·콘텐츠 보강",
   "strategy.conversionLow": "세션 대비 핵심 이벤트 적음({pct}%) — CTA·전환 퍼널 점검",
   "strategy.allGood": "주요 지표 양호 — 별다른 경고 없음",
+  "strategy.trendDecline": "활성 사용자가 {weeks}주 연속 하락 — 지속적 하락세 원인 점검",
   "copy.textButton": "텍스트 복사",
   "copy.aiPrompt": "다음은 내 사이트 분석 데이터입니다. 전반 상태를 평가하고 우선순위 높은 개선점을 제안해주세요:",
   "copy.titleTraffic": "# SiteDeck 트래픽 — 최근 {n}일 ({count}개 사이트, {when} 기준)",
