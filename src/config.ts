@@ -78,3 +78,9 @@ export const ONPAGE_LLMS_TIMEOUT_MS = 6000;
 
 /** How many rows each /api/site-detail breakdown returns (top N). */
 export const DETAIL_TOPN = 5;
+
+/** GA daily-history store (mirrors the PSI/GitHub history constants). */
+export const GA_HISTORY_STORE_PATH = path.join(CONFIG_DIR, 'ga-history.json');
+export const GA_HISTORY_RETENTION_DAYS = 365;
+export const GA_HISTORY_FETCH_DAYS = 90;
+export const GA_HISTORY_WEEKS = 12;

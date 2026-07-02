@@ -1,3 +1,5 @@
+import type { HistoryDigest } from './ga-store';
+
 /** A metric's current vs previous value plus its percentage change. */
 export interface MetricDelta {
   current: number;
@@ -27,6 +29,8 @@ export interface SiteSummary {
   topSource: string | null;
   /** Search Console metrics for the matched verified site; null when none/ungranted. */
   search: SearchMetrics | null;
+  /** Compact daily-history summary (WoW deltas + activeUsers decline streak); null until history exists. */
+  history: HistoryDigest | null;
 }
 
 /**

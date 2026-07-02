@@ -2,6 +2,7 @@ import { AnalyticsAdminServiceClient } from '@google-analytics/admin';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import type { OAuth2Client } from 'google-auth-library';
 import { enumerateDays, type DateRange } from './periods';
+import type { DayMetrics } from './ga-store';
 
 export interface PropertyRef {
   propertyId: string;
@@ -215,4 +216,59 @@ export async function fetchBreakdown(
     ...(dimensionFilter ? { dimensionFilter: dimensionFilter as never } : {}),
   });
   return mapBreakdownRows(report.rows);
+}
+
+export interface DailyMetricsRow {
+  date: string; // YYYY-MM-DD
+  metrics: DayMetrics;
+}
+
+type Row = { dimensionValues?: ({ value?: string | null } | undefined)[] | null; metricValues?: ({ value?: string | null } | undefined)[] | null };
+
+/** Merge a base report (date + [activeUsers,sessions,keyEvents]) and an AI report
+ *  (date + [sessions]) into one zero-filled daily series over `days` (YYYYMMDD),
+ *  converting the date to YYYY-MM-DD. Pure — split out for unit testing. */
+export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | null | undefined, days: string[]): DailyMetricsRow[] {
+  const b = new Map<string, { a: number; s: number; k: number }>();
+  for (const r of base ?? []) {
+    const day = r.dimensionValues?.[0]?.value;
+    if (day) b.set(day, {
+      a: Number(r.metricValues?.[0]?.value ?? 0),
+      s: Number(r.metricValues?.[1]?.value ?? 0),
+      k: Number(r.metricValues?.[2]?.value ?? 0),
+    });
+  }
+  const aiMap = new Map<string, number>();
+  for (const r of ai ?? []) {
+    const day = r.dimensionValues?.[0]?.value;
+    if (day) aiMap.set(day, Number(r.metricValues?.[0]?.value ?? 0));
+  }
+  return days.map((ymd) => {
+    const bv = b.get(ymd) ?? { a: 0, s: 0, k: 0 };
+    return {
+      date: `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`,
+      metrics: { activeUsers: bv.a, sessions: bv.s, keyEvents: bv.k, aiSessions: aiMap.get(ymd) ?? 0 },
+    };
+  });
+}
+
+/** Daily {activeUsers, sessions, keyEvents, aiSessions} over a range, zero-filled. */
+export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, range: DateRange): Promise<DailyMetricsRow[]> {
+  const client = data(auth);
+  const [[base], [aiRep]] = await Promise.all([
+    client.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
+      dimensions: [{ name: 'date' }],
+      metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'keyEvents' }],
+    }),
+    client.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
+      dimensions: [{ name: 'date' }],
+      metrics: [{ name: 'sessions' }],
+      dimensionFilter: AI_DIMENSION_FILTER as never,
+    }),
+  ]);
+  return mapDailyMetricsRows(base.rows, aiRep.rows, enumerateDays(range));
 }

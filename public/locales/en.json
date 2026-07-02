@@ -139,11 +139,14 @@
   "strategy.positionWeak": "Average search position {pos} — strengthen internal links and content",
   "strategy.conversionLow": "Few key events per session ({pct}%) — review CTAs and the conversion funnel",
   "strategy.allGood": "Core metrics look healthy — no warnings",
+  "strategy.trendDecline": "Active users declined {weeks} weeks in a row — investigate a sustained downtrend",
   "copy.textButton": "Copy as text",
   "copy.aiPrompt": "Here is analytics data for my sites. Assess the overall state and suggest the highest-priority improvements:",
   "copy.titleTraffic": "# SiteDeck Traffic — last {n} days ({count} sites, as of {when})",
   "copy.titlePerformance": "# SiteDeck Performance ({count} sites)",
   "copy.titleGeo": "# SiteDeck GEO ({count} sites)",
   "copy.portfolio": "Portfolio: {active} active · {sessions} sessions · {ai} AI ({aiPct}%) · {declining} declining",
-  "copy.strategyHeading": "## Improvement strategy"
+  "copy.strategyHeading": "## Improvement strategy",
+  "detail.history": "History (weekly)",
+  "copy.wowHeading": "## Week-over-week (WoW)"
 }

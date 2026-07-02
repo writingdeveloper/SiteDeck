@@ -139,11 +139,14 @@
   "strategy.positionWeak": "Posición media de búsqueda {pos} — refuerza enlaces internos y contenido",
   "strategy.conversionLow": "Pocos eventos clave por sesión ({pct}%) — revisa CTAs y el embudo",
   "strategy.allGood": "Métricas principales saludables — sin avisos",
+  "strategy.trendDecline": "Usuarios activos bajaron {weeks} semanas seguidas — investiga la tendencia sostenida a la baja",
   "copy.textButton": "Copiar como texto",
   "copy.aiPrompt": "Estos son los datos analíticos de mis sitios. Evalúa el estado general y sugiere las mejoras más prioritarias:",
   "copy.titleTraffic": "# SiteDeck Tráfico — últimos {n} días ({count} sitios, a fecha de {when})",
   "copy.titlePerformance": "# SiteDeck Rendimiento ({count} sitios)",
   "copy.titleGeo": "# SiteDeck GEO ({count} sitios)",
   "copy.portfolio": "Portafolio: {active} activos · {sessions} sesiones · {ai} IA ({aiPct}%) · {declining} en descenso",
-  "copy.strategyHeading": "## Estrategia de mejora"
+  "copy.strategyHeading": "## Estrategia de mejora",
+  "detail.history": "Historial (semanal)",
+  "copy.wowHeading": "## Semana contra semana (WoW)"
 }

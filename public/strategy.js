@@ -14,6 +14,7 @@ export const STRATEGY = {
   CONVERSION_LOW: 0.01,
   CONVERSION_MIN_SESSIONS: 50,
   CHANNEL_CONCENTRATION: 0.7,
+  DECLINE_WEEKS: 3,
 };
 
 const SEVERITY_ORDER = { high: 0, medium: 1, low: 2, good: 3 };
@@ -80,6 +81,11 @@ export function analyzeSite(summary, detail) {
     if (rate < STRATEGY.CONVERSION_LOW) {
       out.push({ id: "conversion-low", severity: "low", params: { pct: round1(rate * 100) } });
     }
+  }
+
+  // High-signal time-series rule: activeUsers declined N+ consecutive weeks.
+  if (summary.history && summary.history.declineWeeks >= STRATEGY.DECLINE_WEEKS) {
+    out.push({ id: "trend-decline", severity: "medium", params: { weeks: summary.history.declineWeeks } });
   }
 
   if (out.length === 0) out.push({ id: "all-good", severity: "good", params: {} });
