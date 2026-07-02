@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import open from 'open';
-import { DETAIL_TOPN, GA_CONCURRENCY, OAUTH_CALLBACK_PATH, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
+import { DETAIL_TOPN, GA_CONCURRENCY, GA_HISTORY_FETCH_DAYS, GA_HISTORY_RETENTION_DAYS, GA_HISTORY_STORE_PATH, GA_HISTORY_WEEKS, OAUTH_CALLBACK_PATH, PORT, SEARCH_CONSOLE_SCOPE, type Period } from './config';
 import {
   credentialsStatus,
   getAuthUrl,
@@ -21,12 +21,13 @@ import {
   AI_DIMENSION_FILTER,
   fetchAiSessions,
   fetchBreakdown,
-  fetchDailySeries,
+  fetchDailyMetrics,
   fetchRange,
   fetchTopValue,
   listProperties,
   listSiteUrls,
 } from './ga';
+import { loadGaHistory, saveGaHistory, upsertDailyMetrics, historyDigest, weeklySeries, wow } from './ga-store';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
 import { getOnPageReport } from './onpage';
 import { mapPool } from './concurrency';
@@ -113,37 +114,39 @@ async function buildSummary(period: Period): Promise<{
   ]);
   const gscMatch = matchSites(siteUrls, gscSites);
 
-  // Bound the per-property fan-out: each property fans out ~7 Data API calls, so an
-  // unbounded props.map would launch P×7 simultaneous requests and silently 429 past
-  // ~10-15 properties. mapPool caps in-flight properties at GA_CONCURRENCY.
-  const sites = (
-    await mapPool(props, GA_CONCURRENCY, async (p): Promise<SiteSummary | null> => {
+  // Daily-history backfill: fetch a fixed 90-day window per property (independent of
+  // the view period) and upsert it, so history accumulates as the app is used.
+  let history = await loadGaHistory(GA_HISTORY_STORE_PATH);
+  const historyRange = comparisonRanges(GA_HISTORY_FETCH_DAYS as Period).current;
+
+  const results = (
+    await mapPool(props, GA_CONCURRENCY, async (p) => {
       try {
         const gscSiteUrl = gscMatch.get(p.propertyId);
-        const [cur, prev, topPage, topSource, trend, aiCur, aiPrev, search] = await Promise.all([
+        const [cur, prev, topPage, topSource, daily, aiCur, aiPrev, search] = await Promise.all([
           fetchRange(auth, p.propertyId, ranges.current),
           fetchRange(auth, p.propertyId, ranges.previous),
           fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
           fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
-          fetchDailySeries(auth, p.propertyId, ranges.current),
+          fetchDailyMetrics(auth, p.propertyId, historyRange),
           fetchAiSessions(auth, p.propertyId, ranges.current),
           fetchAiSessions(auth, p.propertyId, ranges.previous),
-          gscSiteUrl
-            ? fetchSearchMetrics(auth, gscSiteUrl, ranges.current).catch(() => null)
-            : Promise.resolve(null),
+          gscSiteUrl ? fetchSearchMetrics(auth, gscSiteUrl, ranges.current).catch(() => null) : Promise.resolve(null),
         ]);
-        return {
+        const summary: SiteSummary = {
           propertyId: p.propertyId,
           displayName: p.displayName,
           activeUsers: metricDelta(cur.activeUsers, prev.activeUsers),
           sessions: metricDelta(cur.sessions, prev.sessions),
           keyEvents: metricDelta(cur.keyEvents, prev.keyEvents),
           aiSessions: metricDelta(aiCur, aiPrev),
-          trend,
+          trend: daily.slice(-period).map((r) => r.metrics.activeUsers),
           topPage,
           topSource,
           search,
+          history: null,
         };
+        return { propertyId: p.propertyId, series: daily, summary };
       } catch (err) {
         errors.push({
           propertyId: p.propertyId,
@@ -153,7 +156,13 @@ async function buildSummary(period: Period): Promise<{
         return null;
       }
     })
-  ).filter((s): s is SiteSummary => s !== null);
+  ).filter((r): r is { propertyId: string; series: Awaited<ReturnType<typeof fetchDailyMetrics>>; summary: SiteSummary } => r !== null);
+
+  // Upsert sequentially (never mutate the shared store concurrently), persist once.
+  for (const r of results) history = upsertDailyMetrics(history, r.propertyId, r.series, GA_HISTORY_RETENTION_DAYS);
+  await saveGaHistory(GA_HISTORY_STORE_PATH, history).catch((e) => console.error('ga-history save failed (non-fatal):', e));
+
+  const sites = results.map((r) => ({ ...r.summary, history: historyDigest(history, r.propertyId) }));
 
   return { authenticated: true, period, generatedAt: new Date().toISOString(), sites, errors };
 }
@@ -299,7 +308,25 @@ const server = http.createServer(async (req, res) => {
         fetchBreakdown(auth, propertyId, range, 'pagePath', 'screenPageViews', DETAIL_TOPN),
         fetchBreakdown(auth, propertyId, range, 'sessionSource', 'sessions', DETAIL_TOPN, AI_DIMENSION_FILTER),
       ]);
-      json(res, 200, { authenticated: true, channels, pages, aiEngines });
+      const gh = await loadGaHistory(GA_HISTORY_STORE_PATH);
+      const hasHistory = Object.keys(gh.byProperty[propertyId]?.days ?? {}).length > 0;
+      const history = hasHistory
+        ? {
+            weekly: {
+              activeUsers: weeklySeries(gh, propertyId, 'activeUsers', GA_HISTORY_WEEKS),
+              sessions: weeklySeries(gh, propertyId, 'sessions', GA_HISTORY_WEEKS),
+              keyEvents: weeklySeries(gh, propertyId, 'keyEvents', GA_HISTORY_WEEKS),
+              aiSessions: weeklySeries(gh, propertyId, 'aiSessions', GA_HISTORY_WEEKS),
+            },
+            wow: {
+              activeUsers: wow(gh, propertyId, 'activeUsers').deltaPct,
+              sessions: wow(gh, propertyId, 'sessions').deltaPct,
+              keyEvents: wow(gh, propertyId, 'keyEvents').deltaPct,
+              aiSessions: wow(gh, propertyId, 'aiSessions').deltaPct,
+            },
+          }
+        : null;
+      json(res, 200, { authenticated: true, channels, pages, aiEngines, history });
     } catch (err) {
       if (isReauthError(err)) {
         json(res, 200, { authenticated: false, authUrl: '/oauth/start', reason: 'reauth_required' });
