@@ -1132,7 +1132,7 @@ function performanceMarkdown() {
   const headers = [t("col.site"), t("col.performance"), t("col.accessibility"), t("col.bestPractices"), t("col.seo"), t("col.lcp"), t("col.cls"), t("col.inp"), t("col.measuredAt")];
   const rows = sites.map((s) => {
     const l = s.latest ?? {};
-    return [s.displayName, l.performance ?? "", l.accessibility ?? "", l.bestPractices ?? "", l.seo ?? "", l.lcpMs ?? "", l.cls ?? "", l.inpMs ?? "", l.ts ? fmtWhen(l.ts) : ""];
+    return [s.displayName, l.performance ?? "", l.accessibility ?? "", l.bestPractices ?? "", l.seo ?? "", cwvText(l.lcpMs, "lcp"), cwvText(l.cls, "cls"), cwvText(l.inpMs, "inp"), l.ts ? fmtWhen(l.ts) : ""];
   });
   return `${t("copy.aiPrompt")}\n\n${t("copy.titlePerformance", { count: sites.length })}\n\n${toMarkdownTable(headers, rows)}`;
 }
