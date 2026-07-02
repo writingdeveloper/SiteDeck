@@ -124,3 +124,28 @@ export function buildCopyText(site, labels) {
   lines.push(`${labels.trend}: ${trendSparkText(site.trend)}`);
   return lines.join("\n");
 }
+
+/** Build a GitHub-flavored Markdown table from a header row + data rows.
+ *  Cells: `|` escaped, newlines flattened to spaces, null/undefined → empty. */
+export function toMarkdownTable(headers, rows) {
+  const esc = (c) => String(c === null || c === undefined ? "" : c).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+  const head = `| ${headers.map(esc).join(" | ")} |`;
+  const sep = `| ${headers.map(() => "---").join(" | ")} |`;
+  if (!rows.length) return `${head}\n${sep}`;
+  return `${head}\n${sep}\n${rows.map((r) => `| ${r.map(esc).join(" | ")} |`).join("\n")}`;
+}
+
+/** Portfolio-level rollup across sites: metric sums, AI share (1 dp), and the
+ *  count of sites whose active-users delta is negative (null delta = no prior, ignored). */
+export function portfolioTotals(sites) {
+  const acc = { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0, declining: 0 };
+  for (const s of sites) {
+    acc.activeUsers += s.activeUsers?.current ?? 0;
+    acc.sessions += s.sessions?.current ?? 0;
+    acc.keyEvents += s.keyEvents?.current ?? 0;
+    acc.aiSessions += s.aiSessions?.current ?? 0;
+    if (typeof s.activeUsers?.deltaPct === "number" && s.activeUsers.deltaPct < 0) acc.declining += 1;
+  }
+  acc.aiSharePct = acc.sessions > 0 ? Math.round((acc.aiSessions / acc.sessions) * 1000) / 10 : 0;
+  return acc;
+}
