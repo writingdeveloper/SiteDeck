@@ -2,7 +2,7 @@
 // Talks to GET /api/summary?period=7|28|90.
 
 import { t, applyI18n, initI18n, setLocale, getLocale } from "/i18n.js";
-import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore, buildCopyText, toMarkdownTable, portfolioTotals, trendSparkText } from "/format.js";
+import { toCsv, matchesFilter, relTime, resolveTheme, cwvRating, cwvText, deltaClass, sortValue, geoScore, buildCopyText, toMarkdownTable, portfolioTotals, trendSparkText, wowText } from "/format.js";
 import { analyzeSite } from "/strategy.js";
 
 // A change of this magnitude (%) is a "big mover" worth emphasizing for triage.
@@ -195,7 +195,7 @@ function renderStrategy(site, detail) {
         `${escapeHtml(t(strategyKey(f.id), f.params))}</li>`,
     )
     .join("");
-  return `<div class="bd-block strategy"><b>${escapeHtml(t("strategy.title"))}</b><ul>${items}</ul></div>`;
+  return `<div class="bd-block strategy"><b>${escapeHtml(t("strategy.title"))}</b> <span class="muted">${escapeHtml(t("strategy.auto"))}</span><ul>${items}</ul></div>`;
 }
 
 function copyBtn(propertyId) {
@@ -246,7 +246,7 @@ function buildDetailCopyText(site, detail) {
   const block = (label, rows) =>
     rows && rows.length ? `\n${label}:\n` + rows.map((x) => `  ${x.name}: ${x.value}`).join("\n") : "";
   const findings = analyzeSite(site, { channels: detail.channels });
-  const strategy = `\n${t("strategy.title")}:\n` + findings.map((f) => `  - ${t(strategyKey(f.id), f.params)}`).join("\n");
+  const strategy = `\n${t("strategy.title")} (${t("strategy.auto")}):\n` + findings.map((f) => `  - ${t(strategyKey(f.id), f.params)}`).join("\n");
   return [
     buildCopyText(site, copyLabels()),
     block(t("detail.channels"), detail.channels),
@@ -258,21 +258,24 @@ function buildDetailCopyText(site, detail) {
     .join("\n");
 }
 
-// 최근 주간 시리즈(스파크라인) + WoW %를 4개 지표로 보여주는 드로어 히스토리 섹션.
+// 최근 주간 시리즈(스파크라인 + 이번 주 값 + WoW)를 보여주는 드로어 히스토리 섹션.
+// 전 기간 0인 지표(예: 미설정 핵심 이벤트)는 노이즈라 행을 생략한다.
 function historyBlock(history) {
   if (!history) return "";
-  const wowStr = (v) => (typeof v === "number" ? `${v > 0 ? "+" : ""}${v}%` : "—");
   const rows = [
     ["activeUsers", "col.activeUsers"],
     ["sessions", "col.sessions"],
     ["keyEvents", "col.keyEvents"],
     ["aiSessions", "col.aiTraffic"],
   ]
-    .map(
-      ([k, key]) =>
-        `<li>${escapeHtml(t(key))} <span class="muted">${escapeHtml(trendSparkText(history.weekly[k]))} · WoW ${wowStr(history.wow[k])}</span></li>`,
-    )
+    .filter(([k]) => (history.weekly[k] || []).some((v) => v > 0))
+    .map(([k, key]) => {
+      const weekly = history.weekly[k];
+      const lastWeek = weekly[weekly.length - 1] ?? 0;
+      return `<li>${escapeHtml(t(key))} <span class="muted">${escapeHtml(trendSparkText(weekly))} ${fmtNum(lastWeek)} · WoW ${escapeHtml(wowText(history.wow[k], getLocale()))}</span></li>`;
+    })
     .join("");
+  if (!rows) return "";
   return `<div class="bd-block"><b>${escapeHtml(t("detail.history"))}</b><ul>${rows}</ul></div>`;
 }
 
@@ -1147,8 +1150,14 @@ function trafficMarkdown() {
     .map((s) => {
       const h = s.history;
       if (!h) return null;
-      const p = (v) => (typeof v === "number" ? `${v > 0 ? "+" : ""}${v}%` : "—");
-      return `- ${s.displayName}: ${t("col.activeUsers")} ${p(h.wow.activeUsers)} · ${t("col.sessions")} ${p(h.wow.sessions)} · ${t("col.aiTraffic")} ${p(h.wow.aiSessions)}`;
+      const parts = [
+        [t("col.activeUsers"), wowText(h.wow.activeUsers, getLocale())],
+        [t("col.sessions"), wowText(h.wow.sessions, getLocale())],
+        [t("col.aiTraffic"), wowText(h.wow.aiSessions, getLocale())],
+      ];
+      // 양 주 모두 신호가 없는 사이트("— · — · —")는 노이즈라 제외.
+      if (parts.every(([, v]) => v === "—")) return null;
+      return `- ${s.displayName}: ${parts.map(([l, v]) => `${l} ${v}`).join(" · ")}`;
     })
     .filter(Boolean);
   const wowSection = wowLines.length ? `\n\n${t("copy.wowHeading")}\n${wowLines.join("\n")}` : "";

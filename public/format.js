@@ -135,6 +135,16 @@ export function toMarkdownTable(headers, rows) {
   return `${head}\n${sep}\n${rows.map((r) => `| ${r.map(esc).join(" | ")} |`).join("\n")}`;
 }
 
+/** Human label for a week-over-week delta {current, previous, deltaPct}:
+ *  "+12.5%" / "-50%", "0→8" when activity is new this week (previous 0), and
+ *  "—" only when there is no signal in either week. */
+export function wowText(w, locale = "en-US") {
+  if (!w) return "—";
+  if (typeof w.deltaPct === "number") return `${w.deltaPct > 0 ? "+" : ""}${w.deltaPct}%`;
+  if (w.previous === 0 && w.current > 0) return `0→${w.current.toLocaleString(locale)}`;
+  return "—";
+}
+
 /** Portfolio-level rollup across sites: metric sums, AI share (1 dp), and the
  *  count of sites whose active-users delta is negative (null delta = no prior, ignored). */
 export function portfolioTotals(sites) {

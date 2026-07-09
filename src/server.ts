@@ -319,10 +319,10 @@ const server = http.createServer(async (req, res) => {
               aiSessions: weeklySeries(gh, propertyId, 'aiSessions', GA_HISTORY_WEEKS),
             },
             wow: {
-              activeUsers: wow(gh, propertyId, 'activeUsers').deltaPct,
-              sessions: wow(gh, propertyId, 'sessions').deltaPct,
-              keyEvents: wow(gh, propertyId, 'keyEvents').deltaPct,
-              aiSessions: wow(gh, propertyId, 'aiSessions').deltaPct,
+              activeUsers: wow(gh, propertyId, 'activeUsers'),
+              sessions: wow(gh, propertyId, 'sessions'),
+              keyEvents: wow(gh, propertyId, 'keyEvents'),
+              aiSessions: wow(gh, propertyId, 'aiSessions'),
             },
           }
         : null;
