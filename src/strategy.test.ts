@@ -59,6 +59,17 @@ describe('analyzeSite', () => {
     expect(f.some((x) => x.id === 'conversion-low')).toBe(true);
   });
 
+  it('핵심 이벤트가 0이면 측정 미설정(key-events-unset)으로 진단하고 conversion-low는 내지 않음', () => {
+    const f = analyzeSite(site({ keyEvents: md(0, null) }));
+    expect(f.some((x) => x.id === 'key-events-unset' && x.severity === 'low')).toBe(true);
+    expect(f.some((x) => x.id === 'conversion-low')).toBe(false);
+  });
+
+  it('세션이 적으면 key-events-unset도 내지 않음(신호 부족)', () => {
+    const f = analyzeSite(site({ sessions: md(10, 0), keyEvents: md(0, null), aiSessions: md(1, 0) }));
+    expect(f.some((x) => x.id === 'key-events-unset')).toBe(false);
+  });
+
   it('채널 집중은 detail 있을 때만 → channel-concentrated', () => {
     const detail = { channels: [{ name: 'Organic', value: 90 }, { name: 'Direct', value: 10 }] };
     expect(analyzeSite(site(), detail).some((x) => x.id === 'channel-concentrated')).toBe(true);

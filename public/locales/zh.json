@@ -140,13 +140,15 @@
   "strategy.conversionLow": "每次会话的关键事件偏少（{pct}%） — 检查 CTA 与转化漏斗",
   "strategy.allGood": "核心指标良好 — 暂无警告",
   "strategy.trendDecline": "活跃用户连续 {weeks} 周下降 — 排查持续下行趋势",
+  "strategy.keyEventsUnset": "关键事件（转化）未设置 — 需先在 GA4 中定义关键事件才能判断转化情况",
+  "strategy.auto": "基于规则的自动诊断",
   "copy.textButton": "复制为文本",
   "copy.aiPrompt": "以下是我的网站分析数据。请评估整体状况并提出优先级最高的改进建议：",
   "copy.titleTraffic": "# SiteDeck 流量 — 最近 {n} 天（{count} 个站点，截至 {when}）",
   "copy.titlePerformance": "# SiteDeck 性能（{count} 个站点）",
   "copy.titleGeo": "# SiteDeck GEO（{count} 个站点）",
   "copy.portfolio": "组合概览：活跃 {active} · 会话 {sessions} · AI {ai}（{aiPct}%）· 下降 {declining} 个",
-  "copy.strategyHeading": "## 改进策略",
+  "copy.strategyHeading": "## 改进策略（基于规则的自动诊断）",
   "detail.history": "历史（每周）",
   "copy.wowHeading": "## 环比上周 (WoW)"
 }

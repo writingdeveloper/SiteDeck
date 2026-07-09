@@ -13,8 +13,15 @@ export interface GaHistory {
   version: number;
   byProperty: Record<string, { days: Record<string, DayMetrics> }>;
 }
+export interface WowDelta {
+  current: number;
+  previous: number;
+  /** null when the previous week is 0 (change is undefined) — consumers can still
+   *  render "0→N" from current/previous instead of a bare dash. */
+  deltaPct: number | null;
+}
 export interface HistoryDigest {
-  wow: Record<MetricKey, number | null>;
+  wow: Record<MetricKey, WowDelta>;
   declineWeeks: number;
 }
 
@@ -74,11 +81,7 @@ export function weeklySeries(store: GaHistory, propertyId: string, metric: Metri
 }
 
 /** Latest 7-day sum vs the preceding 7-day sum (deltaPct null when previous is 0). */
-export function wow(
-  store: GaHistory,
-  propertyId: string,
-  metric: MetricKey,
-): { current: number; previous: number; deltaPct: number | null } {
+export function wow(store: GaHistory, propertyId: string, metric: MetricKey): WowDelta {
   const daily = dailyWindow(store, propertyId, metric, 14);
   const previous = daily.slice(0, 7).reduce((a, b) => a + b, 0);
   const current = daily.slice(7, 14).reduce((a, b) => a + b, 0);
@@ -109,10 +112,10 @@ export function historyDigest(store: GaHistory, propertyId: string): HistoryDige
   if (!days || Object.keys(days).length === 0) return null;
   return {
     wow: {
-      activeUsers: wow(store, propertyId, 'activeUsers').deltaPct,
-      sessions: wow(store, propertyId, 'sessions').deltaPct,
-      keyEvents: wow(store, propertyId, 'keyEvents').deltaPct,
-      aiSessions: wow(store, propertyId, 'aiSessions').deltaPct,
+      activeUsers: wow(store, propertyId, 'activeUsers'),
+      sessions: wow(store, propertyId, 'sessions'),
+      keyEvents: wow(store, propertyId, 'keyEvents'),
+      aiSessions: wow(store, propertyId, 'aiSessions'),
     },
     declineWeeks: consecutiveDeclineWeeks(store, propertyId, 'activeUsers'),
   };

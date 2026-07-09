@@ -75,7 +75,7 @@ describe('historyDigest', () => {
   it('exposes per-metric WoW deltaPct and activeUsers declineWeeks', () => {
     const s = daysStore('1', '2026-02-14', [...Array(7).fill(10), ...Array(7).fill(5)]);
     const d = historyDigest(s, '1');
-    expect(d?.wow.activeUsers).toBe(-50);
+    expect(d?.wow.activeUsers).toEqual({ current: 35, previous: 70, deltaPct: -50 });
     expect(typeof d?.declineWeeks).toBe('number');
   });
 });

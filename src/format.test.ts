@@ -15,6 +15,7 @@ import {
   trendSparkText,
   toMarkdownTable,
   portfolioTotals,
+  wowText,
 } from '../public/format.js';
 
 describe('escapeCsvField', () => {
@@ -283,5 +284,21 @@ describe('portfolioTotals', () => {
     expect(portfolioTotals([])).toEqual({
       activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0, declining: 0, aiSharePct: 0,
     });
+  });
+});
+
+describe('wowText', () => {
+  it('deltaPct가 있으면 부호 포함 %', () => {
+    expect(wowText({ current: 35, previous: 70, deltaPct: -50 })).toBe('-50%');
+    expect(wowText({ current: 12, previous: 8, deltaPct: 50 })).toBe('+50%');
+  });
+  it('직전 주 0 → 이번 주 신규 발생은 0→N', () => {
+    expect(wowText({ current: 8, previous: 0, deltaPct: null })).toBe('0→8');
+    expect(wowText({ current: 1234, previous: 0, deltaPct: null }, 'en-US')).toBe('0→1,234');
+  });
+  it('양쪽 모두 신호 없음(또는 값 없음)은 —', () => {
+    expect(wowText({ current: 0, previous: 0, deltaPct: null })).toBe('—');
+    expect(wowText(null)).toBe('—');
+    expect(wowText(undefined)).toBe('—');
   });
 });

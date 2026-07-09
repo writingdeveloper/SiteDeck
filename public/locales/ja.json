@@ -140,13 +140,15 @@
   "strategy.conversionLow": "セッション当たりの主要イベントが少ない（{pct}%） — CTAと導線を点検",
   "strategy.allGood": "主要指標は良好 — 警告なし",
   "strategy.trendDecline": "アクティブユーザーが{weeks}週連続で減少 — 継続的な下降傾向を調査",
+  "strategy.keyEventsUnset": "キーイベント（コンバージョン）が未設定 — まずGA4でキーイベントを定義しないと転換の判断はできません",
+  "strategy.auto": "ルールベース自動診断",
   "copy.textButton": "テキストをコピー",
   "copy.aiPrompt": "以下は私のサイトの分析データです。全体の状態を評価し、優先度の高い改善点を提案してください:",
   "copy.titleTraffic": "# SiteDeck トラフィック — 直近{n}日（{count}サイト、{when}時点）",
   "copy.titlePerformance": "# SiteDeck パフォーマンス（{count}サイト）",
   "copy.titleGeo": "# SiteDeck GEO（{count}サイト）",
   "copy.portfolio": "ポートフォリオ: アクティブ {active} · セッション {sessions} · AI {ai}（{aiPct}%）· 減少 {declining}件",
-  "copy.strategyHeading": "## 改善戦略",
+  "copy.strategyHeading": "## 改善戦略（ルールベース自動診断）",
   "detail.history": "履歴（週次）",
   "copy.wowHeading": "## 前週比 (WoW)"
 }

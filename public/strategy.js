@@ -75,11 +75,16 @@ export function analyzeSite(summary, detail) {
     out.push({ id: "position-weak", severity: "low", params: { pos: round1(search.position) } });
   }
 
-  // Low: few key events per session.
+  // Low: key events. Zero key events with real traffic almost always means key
+  // events are not configured in GA4 at all — say that, instead of prescribing
+  // CTA/funnel work that a downstream reader (LLM, MarketDeck) would take at
+  // face value. Only diagnose a low conversion RATE when key events exist.
   if (sessions && sessions.current >= STRATEGY.CONVERSION_MIN_SESSIONS) {
-    const rate = (keyEvents?.current ?? 0) / sessions.current;
-    if (rate < STRATEGY.CONVERSION_LOW) {
-      out.push({ id: "conversion-low", severity: "low", params: { pct: round1(rate * 100) } });
+    const ke = keyEvents?.current ?? 0;
+    if (ke === 0) {
+      out.push({ id: "key-events-unset", severity: "low", params: {} });
+    } else if (ke / sessions.current < STRATEGY.CONVERSION_LOW) {
+      out.push({ id: "conversion-low", severity: "low", params: { pct: round1((ke / sessions.current) * 100) } });
     }
   }
 
