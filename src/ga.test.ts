@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mapBreakdownRows, mapDailyMetricsRows, pickTopValue } from './ga';
+import { mapDataQuality } from './ga';
 
 describe('mapBreakdownRows', () => {
   it('dimension + metric 값을 {name, value}로 매핑', () => {
@@ -66,5 +67,16 @@ describe('mapBreakdownRows — (other) 제외', () => {
       { dimensionValues: [{ value: 'Organic Search' }], metricValues: [{ value: '120' }] },
       { dimensionValues: [{ value: '(other)' }], metricValues: [{ value: '80' }] },
     ])).toEqual([{ name: 'Organic Search', value: 120 }]);
+  });
+});
+
+describe('mapDataQuality', () => {
+  it('샘플링·임계·기타행 손실 플래그', () => {
+    expect(mapDataQuality({ samplingMetadatas: [{}], subjectToThresholding: true, dataLossFromOtherRow: true }))
+      .toEqual({ sampled: true, thresholded: true, otherRow: true });
+  });
+  it('없거나 빈 metadata는 전부 false', () => {
+    expect(mapDataQuality(undefined)).toEqual({ sampled: false, thresholded: false, otherRow: false });
+    expect(mapDataQuality({ samplingMetadatas: [] })).toEqual({ sampled: false, thresholded: false, otherRow: false });
   });
 });

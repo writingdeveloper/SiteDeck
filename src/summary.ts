@@ -1,4 +1,5 @@
 import type { HistoryDigest } from './ga-store';
+import type { DataQuality } from './ga';
 
 /** A metric's current vs previous value plus its percentage change. */
 export interface MetricDelta {
@@ -31,6 +32,8 @@ export interface SiteSummary {
   search: SearchMetrics | null;
   /** Compact daily-history summary (WoW deltas + activeUsers decline streak); null until history exists. */
   history: HistoryDigest | null;
+  /** GA가 이 사이트 수치를 샘플링/임계 처리했는지(없으면 null). */
+  dataQuality: DataQuality | null;
 }
 
 /**

@@ -9,10 +9,25 @@ export interface PropertyRef {
   displayName: string;
 }
 
+export interface DataQuality {
+  sampled: boolean;
+  thresholded: boolean;
+  otherRow: boolean;
+}
 export interface RangeMetrics {
   activeUsers: number;
   sessions: number;
   keyEvents: number;
+  dataQuality: DataQuality;
+}
+/** GA4 runReport metadata → data-quality flags. Pure — unit-tested. */
+export function mapDataQuality(metadata: unknown): DataQuality {
+  const m = (metadata ?? {}) as { samplingMetadatas?: unknown[]; subjectToThresholding?: boolean; dataLossFromOtherRow?: boolean };
+  return {
+    sampled: Array.isArray(m.samplingMetadatas) && m.samplingMetadatas.length > 0,
+    thresholded: m.subjectToThresholding === true,
+    otherRow: m.dataLossFromOtherRow === true,
+  };
 }
 
 let adminClient: AnalyticsAdminServiceClient | null = null;
@@ -107,6 +122,7 @@ export async function fetchRange(
     activeUsers: Number(row?.metricValues?.[0]?.value ?? 0),
     sessions: Number(row?.metricValues?.[1]?.value ?? 0),
     keyEvents: Number(row?.metricValues?.[2]?.value ?? 0),
+    dataQuality: mapDataQuality(report.metadata),
   };
 }
 

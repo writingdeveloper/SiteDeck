@@ -145,6 +145,7 @@ async function buildSummary(period: Period): Promise<{
           topSource,
           search,
           history: null,
+          dataQuality: cur.dataQuality,
         };
         return { propertyId: p.propertyId, series: daily, summary };
       } catch (err) {
