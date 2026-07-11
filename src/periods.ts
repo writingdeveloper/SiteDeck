@@ -58,3 +58,16 @@ export function enumerateDays(range: DateRange): string[] {
   }
   return out;
 }
+
+/** GA4 Data API 전용 상대 날짜 범위 — GA가 속성 타임존으로 해석한다. */
+export function gaRanges(period: Period): ComparisonRanges {
+  return {
+    current: { startDate: `${period}daysAgo`, endDate: 'yesterday' },
+    previous: { startDate: `${period * 2}daysAgo`, endDate: `${period + 1}daysAgo` },
+  };
+}
+
+/** GA4 일별 히스토리 백필용 상대 범위(어제까지 최근 `days`일). */
+export function gaHistoryRange(days: number): DateRange {
+  return { startDate: `${days}daysAgo`, endDate: 'yesterday' };
+}

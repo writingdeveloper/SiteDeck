@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { comparisonRanges, enumerateDays } from './periods';
+import { comparisonRanges, enumerateDays, gaRanges, gaHistoryRange } from './periods';
 import { PERIODS } from './config';
 
 // Fixed "now" so tests are deterministic. GA only counts full days, so the
@@ -65,5 +65,24 @@ describe('enumerateDays', () => {
       '20260601',
       '20260602',
     ]);
+  });
+});
+
+describe('gaRanges (GA4 상대 날짜)', () => {
+  it('current = NdaysAgo..yesterday, previous = 직전 N일', () => {
+    expect(gaRanges(7)).toEqual({
+      current: { startDate: '7daysAgo', endDate: 'yesterday' },
+      previous: { startDate: '14daysAgo', endDate: '8daysAgo' },
+    });
+    expect(gaRanges(28)).toEqual({
+      current: { startDate: '28daysAgo', endDate: 'yesterday' },
+      previous: { startDate: '56daysAgo', endDate: '29daysAgo' },
+    });
+  });
+});
+
+describe('gaHistoryRange', () => {
+  it('최근 N일, 어제까지', () => {
+    expect(gaHistoryRange(90)).toEqual({ startDate: '90daysAgo', endDate: 'yesterday' });
   });
 });
