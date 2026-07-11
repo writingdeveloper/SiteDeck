@@ -21,38 +21,71 @@ export function normalizeHost(input: string): string {
     .replace(/^www\./, '');
 }
 
+export interface ParsedSite {
+  raw: string;
+  kind: 'domain' | 'prefix';
+  host: string;      // 정규화(소문자, 선행 www 제거)
+  scheme?: string;   // prefix 전용 (예: 'https')
+  path?: string;     // prefix 전용 (예: '/', '/shop/')
+}
+
+/** GSC/GA 사이트 식별자를 스킴·호스트·경로로 파싱. sc-domain:은 도메인, 그 외는 URL. */
+export function parseSite(input: string): ParsedSite | null {
+  const raw = input.trim();
+  if (/^sc-domain:/i.test(raw)) {
+    const host = normalizeHost(raw);
+    return host ? { raw, kind: 'domain', host } : null;
+  }
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    return host ? { raw, kind: 'prefix', host, scheme: u.protocol.replace(/:$/, ''), path: u.pathname || '/' } : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Map each GA4 property (by its web data-stream URL) to a verified GSC site.
  * Domain properties (`sc-domain:`) cover subdomains too; URL-prefix sites match
- * on the exact normalized host. Properties with no verified site are omitted.
+ * on the exact normalized host *and* require the GA URL's path to fall under the
+ * property's path, so a subpath-only property (e.g. `https://x.com/shop/`) never
+ * absorbs traffic for the whole host (A5).
  *
  * When several verified sites cover one host (e.g. a subdomain that has both its
  * own property and a parent domain property), the most specific one wins — the
- * longest matched domain — so a subdomain never silently reports the parent's
- * aggregate. Remaining ties (a domain vs URL-prefix property for the same host)
- * break alphabetically, so the choice — and thus the numbers — stay stable across
- * refreshes instead of following the API's (unordered) site list.
+ * longest matched host — so a subdomain never silently reports the parent's
+ * aggregate. Next, a URL-prefix candidate whose scheme matches the GA data-stream
+ * URL is preferred, so `http://` and `https://` properties for the same host — two
+ * distinct, separately-verified GSC properties — don't collide on the legacy/empty
+ * one (A1). Remaining ties break alphabetically, so the choice — and thus the
+ * numbers — stay stable across refreshes instead of following the API's
+ * (unordered) site list.
  */
 export function matchSites(
   siteUrls: { propertyId: string; url: string }[],
   gscSites: string[],
 ): Map<string, string> {
+  const parsed = gscSites.map(parseSite).filter((s): s is ParsedSite => s !== null);
   const out = new Map<string, string>();
   for (const { propertyId, url } of siteUrls) {
-    const host = normalizeHost(url);
-    if (!host) continue;
-    const candidates = gscSites.filter((site) => {
-      const dom = normalizeHost(site);
-      if (!dom) return false;
-      if (dom === host) return true;
-      return /^sc-domain:/i.test(site) && host.endsWith(`.${dom}`);
+    const ga = parseSite(url);
+    if (!ga || ga.kind !== 'prefix') continue; // GA 스트림 URL은 절대 URL
+    const gaPath = ga.path ?? '/';
+    const candidates = parsed.filter((c) => {
+      if (c.kind === 'domain') return c.host === ga.host || ga.host.endsWith(`.${c.host}`);
+      return c.host === ga.host && gaPath.startsWith(c.path ?? '/'); // 경로 포함(A5)
     });
     if (candidates.length === 0) continue;
     candidates.sort((a, b) => {
-      const bySpecificity = normalizeHost(b).length - normalizeHost(a).length;
-      return bySpecificity !== 0 ? bySpecificity : a < b ? -1 : a > b ? 1 : 0;
+      const hostSpec = b.host.length - a.host.length;            // 더 구체적인 호스트 우선
+      if (hostSpec !== 0) return hostSpec;
+      const sa = a.kind === 'prefix' && a.scheme === ga.scheme ? 0 : 1; // 스킴 일치 우선(A1)
+      const sb = b.kind === 'prefix' && b.scheme === ga.scheme ? 0 : 1;
+      if (sa !== sb) return sa - sb;
+      return a.raw < b.raw ? -1 : a.raw > b.raw ? 1 : 0;         // 결정적 폴백
     });
-    out.set(propertyId, candidates[0] as string);
+    out.set(propertyId, (candidates[0] as ParsedSite).raw);
   }
   return out;
 }

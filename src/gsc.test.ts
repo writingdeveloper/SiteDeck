@@ -113,6 +113,18 @@ describe('matchSites', () => {
     expect(a).toBeDefined();
     expect(a).toBe(b);
   });
+
+  it('GA 스트림과 스킴이 일치하는 속성을 레거시 http보다 우선 (A1)', () => {
+    const m = matchSites([{ propertyId: '1', url: 'https://x.com' }], ['http://x.com/', 'https://x.com/']);
+    expect(m.get('1')).toBe('https://x.com/');
+  });
+  it('하위경로 전용 속성을 전체 사이트 GA 속성에 붙이지 않는다 (A5)', () => {
+    expect(matchSites([{ propertyId: '1', url: 'https://x.com' }], ['https://x.com/shop/']).size).toBe(0);
+  });
+  it('루트 url-prefix를 하위경로보다 우선 (A5)', () => {
+    const m = matchSites([{ propertyId: '1', url: 'https://x.com' }], ['https://x.com/shop/', 'https://x.com/']);
+    expect(m.get('1')).toBe('https://x.com/');
+  });
 });
 
 describe('parseGscSites', () => {
