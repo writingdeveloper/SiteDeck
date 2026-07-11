@@ -226,9 +226,9 @@ export interface DailyMetricsRow {
 type Row = { dimensionValues?: ({ value?: string | null } | undefined)[] | null; metricValues?: ({ value?: string | null } | undefined)[] | null };
 
 /** Merge a base report (date + [activeUsers,sessions,keyEvents]) and an AI report
- *  (date + [sessions]) into one zero-filled daily series over `days` (YYYYMMDD),
- *  converting the date to YYYY-MM-DD. Pure — split out for unit testing. */
-export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | null | undefined, days: string[]): DailyMetricsRow[] {
+ *  (date + [sessions]) by date. keepEmptyRows guarantees 0-traffic days are present,
+ *  so the date set comes from the reports themselves. Pure — split for unit testing. */
+export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | null | undefined): DailyMetricsRow[] {
   const b = new Map<string, { a: number; s: number; k: number }>();
   for (const r of base ?? []) {
     const day = r.dimensionValues?.[0]?.value;
@@ -243,6 +243,7 @@ export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | 
     const day = r.dimensionValues?.[0]?.value;
     if (day) aiMap.set(day, Number(r.metricValues?.[0]?.value ?? 0));
   }
+  const days = [...new Set([...b.keys(), ...aiMap.keys()])].sort();
   return days.map((ymd) => {
     const bv = b.get(ymd) ?? { a: 0, s: 0, k: 0 };
     return {
@@ -261,6 +262,7 @@ export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, 
       dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
       dimensions: [{ name: 'date' }],
       metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'keyEvents' }],
+      keepEmptyRows: true,
     }),
     client.runReport({
       property: `properties/${propertyId}`,
@@ -268,7 +270,8 @@ export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, 
       dimensions: [{ name: 'date' }],
       metrics: [{ name: 'sessions' }],
       dimensionFilter: AI_DIMENSION_FILTER as never,
+      keepEmptyRows: true,
     }),
   ]);
-  return mapDailyMetricsRows(base.rows, aiRep.rows, enumerateDays(range));
+  return mapDailyMetricsRows(base.rows, aiRep.rows);
 }

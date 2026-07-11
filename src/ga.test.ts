@@ -28,20 +28,20 @@ describe('mapDailyMetricsRows', () => {
   const base = [
     { dimensionValues: [{ value: '20260101' }], metricValues: [{ value: '10' }, { value: '20' }, { value: '2' }] },
     { dimensionValues: [{ value: '20260102' }], metricValues: [{ value: '5' }, { value: '9' }, { value: '1' }] },
+    // keepEmptyRows:true 이므로 0인 날도 리포트에 포함되어 들어온다.
+    { dimensionValues: [{ value: '20260103' }], metricValues: [{ value: '0' }, { value: '0' }, { value: '0' }] },
   ];
   const ai = [{ dimensionValues: [{ value: '20260102' }], metricValues: [{ value: '3' }] }];
-  const days = ['20260101', '20260102', '20260103'];
 
-  it('merges base + AI reports by day, zero-fills the range, and dashes dates', () => {
-    expect(mapDailyMetricsRows(base, ai, days)).toEqual([
+  it('base+AI를 날짜별 병합(날짜는 리포트에서 도출)하고 YYYY-MM-DD로 변환', () => {
+    expect(mapDailyMetricsRows(base, ai)).toEqual([
       { date: '2026-01-01', metrics: { activeUsers: 10, sessions: 20, keyEvents: 2, aiSessions: 0 } },
       { date: '2026-01-02', metrics: { activeUsers: 5, sessions: 9, keyEvents: 1, aiSessions: 3 } },
       { date: '2026-01-03', metrics: { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0 } },
     ]);
   });
-  it('handles null report rows', () => {
-    expect(mapDailyMetricsRows(null, null, ['20260101'])).toEqual([
-      { date: '2026-01-01', metrics: { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0 } },
-    ]);
+
+  it('두 리포트가 비면 빈 배열', () => {
+    expect(mapDailyMetricsRows(null, null)).toEqual([]);
   });
 });
