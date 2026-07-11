@@ -110,6 +110,18 @@ export async function fetchRange(
   };
 }
 
+const OMIT_TOP_VALUES = new Set(['(not set)', '(other)']);
+/** First dimension value that isn't GA's (not set)/(other) aggregate. Pure — unit-tested. */
+export function pickTopValue(
+  rows: { dimensionValues?: ({ value?: string | null } | undefined)[] | null }[] | null | undefined,
+): string | null {
+  for (const r of rows ?? []) {
+    const v = r.dimensionValues?.[0]?.value;
+    if (v && !OMIT_TOP_VALUES.has(v)) return v;
+  }
+  return null;
+}
+
 /** The single top dimension value (by `metric`, descending) for a property over a range. */
 export async function fetchTopValue(
   auth: OAuth2Client,
@@ -123,11 +135,10 @@ export async function fetchTopValue(
     dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
     dimensions: [{ name: dimension }],
     metrics: [{ name: metric }],
-    orderBys: [{ metric: { metricName: metric }, desc: true }],
-    limit: 1,
+    orderBys: [{ metric: { metricName: metric }, desc: true }, { dimension: { dimensionName: dimension } }],
+    limit: 5,
   });
-  const value = report.rows?.[0]?.dimensionValues?.[0]?.value;
-  return value && value !== '(not set)' ? value : null;
+  return pickTopValue(report.rows);
 }
 
 /** Daily values of `metric` over a range, zero-filled and in chronological order. */
@@ -189,10 +200,12 @@ export function mapBreakdownRows(
     | null
     | undefined,
 ): BreakdownRow[] {
-  return (rows ?? []).map((r) => ({
-    name: r.dimensionValues?.[0]?.value ?? '(not set)',
-    value: Number(r.metricValues?.[0]?.value ?? 0),
-  }));
+  return (rows ?? [])
+    .filter((r) => r.dimensionValues?.[0]?.value !== '(other)')
+    .map((r) => ({
+      name: r.dimensionValues?.[0]?.value ?? '(not set)',
+      value: Number(r.metricValues?.[0]?.value ?? 0),
+    }));
 }
 
 /** Top-N values of `metric` by `dimension` for a property over a range (descending),
@@ -211,7 +224,7 @@ export async function fetchBreakdown(
     dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
     dimensions: [{ name: dimension }],
     metrics: [{ name: metric }],
-    orderBys: [{ metric: { metricName: metric }, desc: true }],
+    orderBys: [{ metric: { metricName: metric }, desc: true }, { dimension: { dimensionName: dimension } }],
     limit,
     ...(dimensionFilter ? { dimensionFilter: dimensionFilter as never } : {}),
   });

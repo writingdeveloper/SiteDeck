@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapBreakdownRows, mapDailyMetricsRows } from './ga';
+import { mapBreakdownRows, mapDailyMetricsRows, pickTopValue } from './ga';
 
 describe('mapBreakdownRows', () => {
   it('dimension + metric 값을 {name, value}로 매핑', () => {
@@ -43,5 +43,28 @@ describe('mapDailyMetricsRows', () => {
 
   it('두 리포트가 비면 빈 배열', () => {
     expect(mapDailyMetricsRows(null, null)).toEqual([]);
+  });
+});
+
+describe('pickTopValue', () => {
+  it('(other)/(not set)를 건너뛰고 첫 유효 값을 고른다', () => {
+    expect(pickTopValue([
+      { dimensionValues: [{ value: '(other)' }] },
+      { dimensionValues: [{ value: '/home' }] },
+    ])).toBe('/home');
+  });
+  it('전부 (other)/(not set)면 null', () => {
+    expect(pickTopValue([{ dimensionValues: [{ value: '(not set)' }] }, { dimensionValues: [{ value: '(other)' }] }])).toBe(null);
+    expect(pickTopValue([])).toBe(null);
+    expect(pickTopValue(null)).toBe(null);
+  });
+});
+
+describe('mapBreakdownRows — (other) 제외', () => {
+  it('(other) 집계행을 버린다', () => {
+    expect(mapBreakdownRows([
+      { dimensionValues: [{ value: 'Organic Search' }], metricValues: [{ value: '120' }] },
+      { dimensionValues: [{ value: '(other)' }], metricValues: [{ value: '80' }] },
+    ])).toEqual([{ name: 'Organic Search', value: 120 }]);
   });
 });
