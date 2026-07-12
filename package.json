@@ -38,6 +38,7 @@
     "icon": "node scripts/make-icon.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "verify:accuracy": "tsx scripts/verify-accuracy.mts",
     "test:watch": "vitest"
   },
   "dependencies": {
