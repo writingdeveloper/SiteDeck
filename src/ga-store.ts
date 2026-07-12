@@ -28,8 +28,11 @@ export interface HistoryDigest {
 const ZERO: DayMetrics = { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0 };
 const MS_PER_DAY = 86_400_000;
 
+/** Bump when the on-disk shape changes; loadGaHistory rejects any other version. */
+export const GA_HISTORY_VERSION = 1;
+
 export function emptyGaHistory(): GaHistory {
-  return { version: 1, byProperty: {} };
+  return { version: GA_HISTORY_VERSION, byProperty: {} };
 }
 
 /** YYYY-MM-DD `n` days before `dateStr` (UTC). */
@@ -122,7 +125,12 @@ export function historyDigest(store: GaHistory, propertyId: string): HistoryDige
 }
 
 export function loadGaHistory(filePath: string): Promise<GaHistory> {
-  return loadJsonStore<GaHistory>(filePath, emptyGaHistory, (p) => Boolean((p as { byProperty?: unknown }).byProperty));
+  return loadJsonStore<GaHistory>(
+    filePath,
+    emptyGaHistory,
+    (p) => Boolean((p as { byProperty?: unknown }).byProperty),
+    GA_HISTORY_VERSION,
+  );
 }
 export function saveGaHistory(filePath: string, store: GaHistory): Promise<void> {
   return saveJsonStore(filePath, store);
