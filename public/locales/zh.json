@@ -155,5 +155,7 @@
   "quality.sampled": "抽样",
   "quality.thresholded": "阈值处理",
   "quality.otherRow": "部分并入(其他)",
-  "quality.badgeLabel": "数据质量"
+  "quality.badgeLabel": "数据质量",
+  "integrity.mismatch": "内部交叉校验不一致（{fields}）— 请勿信任这些数字。这是 SiteDeck 的缺陷，而非 GA 的特性。",
+  "integrity.badgeLabel": "完整性校验失败"
 }

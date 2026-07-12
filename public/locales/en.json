@@ -155,5 +155,7 @@
   "quality.sampled": "Sampled",
   "quality.thresholded": "Thresholded",
   "quality.otherRow": "Long tail folded into (other)",
-  "quality.badgeLabel": "Data quality"
+  "quality.badgeLabel": "Data quality",
+  "integrity.mismatch": "Internal cross-check failed ({fields}) — do not trust these numbers. This is a SiteDeck bug, not a GA caveat.",
+  "integrity.badgeLabel": "Integrity check failed"
 }

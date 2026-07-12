@@ -155,5 +155,7 @@
   "quality.sampled": "Muestreado",
   "quality.thresholded": "Con umbral",
   "quality.otherRow": "Cola larga en (otros)",
-  "quality.badgeLabel": "Calidad de datos"
+  "quality.badgeLabel": "Calidad de datos",
+  "integrity.mismatch": "Verificación cruzada interna fallida ({fields}): no confíe en estas cifras. Es un error de SiteDeck, no una peculiaridad de GA.",
+  "integrity.badgeLabel": "Fallo de verificación de integridad"
 }

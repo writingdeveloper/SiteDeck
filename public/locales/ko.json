@@ -155,5 +155,7 @@
   "quality.sampled": "표본",
   "quality.thresholded": "임계 처리",
   "quality.otherRow": "일부가 (기타)로 합산됨",
-  "quality.badgeLabel": "데이터 품질"
+  "quality.badgeLabel": "데이터 품질",
+  "integrity.mismatch": "내부 교차검증 불일치 ({fields}) — 이 수치를 신뢰하지 마세요. GA의 특성이 아니라 SiteDeck의 버그입니다.",
+  "integrity.badgeLabel": "무결성 검사 실패"
 }

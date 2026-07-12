@@ -155,5 +155,7 @@
   "quality.sampled": "サンプリング",
   "quality.thresholded": "しきい値処理",
   "quality.otherRow": "一部が(その他)に集約",
-  "quality.badgeLabel": "データ品質"
+  "quality.badgeLabel": "データ品質",
+  "integrity.mismatch": "内部クロスチェック不一致 ({fields}) — この数値を信頼しないでください。GA の仕様ではなく SiteDeck のバグです。",
+  "integrity.badgeLabel": "整合性チェック失敗"
 }
