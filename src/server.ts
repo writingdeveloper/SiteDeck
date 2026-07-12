@@ -44,6 +44,7 @@ import {
 import { listenWithFallback } from './listen';
 import { escapeHtml } from './html';
 import { isReauthError, isSameOriginRequest, isValidPropertyId, parsePeriod } from './http-helpers';
+import { hardenConfigPermissions } from './permissions';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -518,6 +519,7 @@ listenWithFallback(server, PORT, 10, '127.0.0.1')
     console.log(`SiteDeck → http://127.0.0.1:${port}`);
     // Machine-readable line so the Electron main process learns the real port.
     console.log(`SITEDECK_LISTENING ${port}`);
+    void hardenConfigPermissions();
     void initInsights()
       .then(startInsightsScheduler)
       .catch((err) => console.error('insights init failed:', err));
