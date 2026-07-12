@@ -70,10 +70,17 @@ describe('analyzeSite', () => {
     expect(f.some((x) => x.id === 'key-events-unset')).toBe(false);
   });
 
-  it('채널 집중은 detail 있을 때만 → channel-concentrated', () => {
-    const detail = { channels: [{ name: 'Organic', value: 90 }, { name: 'Direct', value: 10 }] };
+  it('상위 채널이 세션총계의 70% 초과면 channel-concentrated (분모=세션총계)', () => {
+    // site()의 sessions.current = 2000; 1500/2000 = 75% > 70%
+    const detail = { channels: [{ name: 'Organic', value: 1500 }, { name: 'Direct', value: 200 }] };
     expect(analyzeSite(site(), detail).some((x) => x.id === 'channel-concentrated')).toBe(true);
     expect(analyzeSite(site()).some((x) => x.id === 'channel-concentrated')).toBe(false);
+  });
+
+  it('top-5 합 기준이면 오발화했을 케이스가 세션총계 기준이면 미발화', () => {
+    // 상위 채널 300은 top-5 합(360)의 83%지만 세션총계 2000 대비 15% → 미발화
+    const detail = { channels: [{ name: 'Organic', value: 300 }, { name: 'Direct', value: 60 }] };
+    expect(analyzeSite(site(), detail).some((x) => x.id === 'channel-concentrated')).toBe(false);
   });
 
   it('심각도 순으로 정렬(high가 low보다 앞)', () => {

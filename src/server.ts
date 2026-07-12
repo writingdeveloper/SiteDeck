@@ -16,7 +16,7 @@ import {
 import { AppError } from './errors';
 import { getSettings, updateSettings, type Settings } from './settings';
 import { tServer } from './i18n';
-import { comparisonRanges } from './periods';
+import { comparisonRanges, gaRanges, gaHistoryRange } from './periods';
 import {
   AI_DIMENSION_FILTER,
   fetchAiSessions,
@@ -100,7 +100,8 @@ async function buildSummary(period: Period): Promise<{
   errors: SummaryError[];
 }> {
   const auth = await getClient();
-  const ranges = comparisonRanges(period);
+  const ranges = gaRanges(period);              // GA: 상대 날짜(속성 타임존)
+  const gscRange = comparisonRanges(period).current; // GSC: 절대 날짜
   const errors: SummaryError[] = [];
 
   // GA4 properties (the dashboard rows) plus, in parallel, what's needed to attach
@@ -117,7 +118,7 @@ async function buildSummary(period: Period): Promise<{
   // Daily-history backfill: fetch a fixed 90-day window per property (independent of
   // the view period) and upsert it, so history accumulates as the app is used.
   let history = await loadGaHistory(GA_HISTORY_STORE_PATH);
-  const historyRange = comparisonRanges(GA_HISTORY_FETCH_DAYS as Period).current;
+  const historyRange = gaHistoryRange(GA_HISTORY_FETCH_DAYS);
 
   const results = (
     await mapPool(props, GA_CONCURRENCY, async (p) => {
@@ -128,10 +129,10 @@ async function buildSummary(period: Period): Promise<{
           fetchRange(auth, p.propertyId, ranges.previous),
           fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
           fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
-          fetchDailyMetrics(auth, p.propertyId, historyRange),
+          fetchDailyMetrics(auth, p.propertyId, historyRange, GA_HISTORY_FETCH_DAYS),
           fetchAiSessions(auth, p.propertyId, ranges.current),
           fetchAiSessions(auth, p.propertyId, ranges.previous),
-          gscSiteUrl ? fetchSearchMetrics(auth, gscSiteUrl, ranges.current).catch(() => null) : Promise.resolve(null),
+          gscSiteUrl ? fetchSearchMetrics(auth, gscSiteUrl, gscRange).catch(() => null) : Promise.resolve(null),
         ]);
         const summary: SiteSummary = {
           propertyId: p.propertyId,
@@ -141,10 +142,14 @@ async function buildSummary(period: Period): Promise<{
           keyEvents: metricDelta(cur.keyEvents, prev.keyEvents),
           aiSessions: metricDelta(aiCur, aiPrev),
           trend: daily.slice(-period).map((r) => r.metrics.activeUsers),
-          topPage,
-          topSource,
+          topPage: topPage.value,
+          topSource: topSource.value,
           search,
           history: null,
+          dataQuality: {
+            ...cur.dataQuality,
+            otherRow: cur.dataQuality.otherRow || topPage.otherRow || topSource.otherRow,
+          },
         };
         return { propertyId: p.propertyId, series: daily, summary };
       } catch (err) {
@@ -301,7 +306,7 @@ const server = http.createServer(async (req, res) => {
         json(res, 400, { error: { code: 'bad_request', detail: 'invalid propertyId' } });
         return;
       }
-      const range = comparisonRanges(parsePeriod(url.searchParams.get('period'))).current;
+      const range = gaRanges(parsePeriod(url.searchParams.get('period'))).current;
       const auth = await getClient();
       const [channels, pages, aiEngines] = await Promise.all([
         fetchBreakdown(auth, propertyId, range, 'sessionDefaultChannelGroup', 'sessions', DETAIL_TOPN),

@@ -109,10 +109,11 @@
   "oauth.failed": "인증 실패: {detail}",
   "oauth.tokenFailed": "토큰 교환 실패: {detail}",
   "oauth.noCode": "코드 없음",
-  "tip.aiTraffic": "AI 어시스턴트 추천 — ChatGPT, Perplexity, Gemini, Copilot 등",
-  "tip.searchImpressions": "Search Console 노출수 (Google 검색)",
-  "tip.searchClicks": "Search Console 클릭수 (Google 검색)",
-  "tip.searchPosition": "Search Console 평균 순위 — 낮을수록 좋음",
+  "tip.activeUsers": "GA4 활성 사용자. 일부 리포트의 totalUsers와 다를 수 있습니다.",
+  "tip.aiTraffic": "AI 답변엔진 유입 세션(ChatGPT·Perplexity·Gemini 등). 리퍼러가 제거된 방문은 빠진 하한값입니다.",
+  "tip.searchImpressions": "Search Console 노출수. 최근 약 3일은 잠정치입니다.",
+  "tip.searchClicks": "Search Console 클릭수. 최근 약 3일은 잠정치입니다.",
+  "tip.searchPosition": "Search Console 평균 게재순위. 최근 약 3일은 잠정치입니다.",
   "tip.title": "비어 있지 않은 <title> 태그가 있음",
   "tip.description": "메타 설명이 있음",
   "tip.canonical": "Canonical URL이 있음",
@@ -150,5 +151,9 @@
   "copy.portfolio": "포트폴리오: 활성 {active} · 세션 {sessions} · AI {ai} ({aiPct}%) · 하락 {declining}개",
   "copy.strategyHeading": "## 개선 전략 (규칙 기반 자동 진단)",
   "detail.history": "히스토리 (주간)",
-  "copy.wowHeading": "## 주간 대비 (WoW)"
+  "copy.wowHeading": "## 주간 대비 (WoW)",
+  "quality.sampled": "표본",
+  "quality.thresholded": "임계 처리",
+  "quality.otherRow": "일부가 (기타)로 합산됨",
+  "quality.badgeLabel": "데이터 품질"
 }

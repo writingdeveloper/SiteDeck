@@ -1,7 +1,7 @@
 import { AnalyticsAdminServiceClient } from '@google-analytics/admin';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import type { OAuth2Client } from 'google-auth-library';
-import { enumerateDays, type DateRange } from './periods';
+import { expectedDaysInZone, type DateRange } from './periods';
 import type { DayMetrics } from './ga-store';
 
 export interface PropertyRef {
@@ -9,10 +9,25 @@ export interface PropertyRef {
   displayName: string;
 }
 
+export interface DataQuality {
+  sampled: boolean;
+  thresholded: boolean;
+  otherRow: boolean;
+}
 export interface RangeMetrics {
   activeUsers: number;
   sessions: number;
   keyEvents: number;
+  dataQuality: DataQuality;
+}
+/** GA4 runReport metadata → data-quality flags. Pure — unit-tested. */
+export function mapDataQuality(metadata: unknown): DataQuality {
+  const m = (metadata ?? {}) as { samplingMetadatas?: unknown[]; subjectToThresholding?: boolean; dataLossFromOtherRow?: boolean };
+  return {
+    sampled: Array.isArray(m.samplingMetadatas) && m.samplingMetadatas.length > 0,
+    thresholded: m.subjectToThresholding === true,
+    otherRow: m.dataLossFromOtherRow === true,
+  };
 }
 
 let adminClient: AnalyticsAdminServiceClient | null = null;
@@ -107,48 +122,60 @@ export async function fetchRange(
     activeUsers: Number(row?.metricValues?.[0]?.value ?? 0),
     sessions: Number(row?.metricValues?.[1]?.value ?? 0),
     keyEvents: Number(row?.metricValues?.[2]?.value ?? 0),
+    dataQuality: mapDataQuality(report.metadata),
   };
 }
 
-/** The single top dimension value (by `metric`, descending) for a property over a range. */
+// GA's aggregate row for values folded past the query's `limit`. Shared by pickTopValue
+// (top-value picker) and mapBreakdownRows (breakdown filter) so both agree on exactly
+// what "(other)" means.
+const OTHER_ROW = '(other)';
+const OMIT_TOP_VALUES = new Set(['(not set)', OTHER_ROW]);
+/** First dimension value that isn't GA's (not set)/(other) aggregate. Pure — unit-tested. */
+export function pickTopValue(
+  rows: { dimensionValues?: ({ value?: string | null } | undefined)[] | null }[] | null | undefined,
+): string | null {
+  for (const r of rows ?? []) {
+    const v = r.dimensionValues?.[0]?.value;
+    if (v && !OMIT_TOP_VALUES.has(v)) return v;
+  }
+  return null;
+}
+
+export interface TopValue {
+  value: string | null;
+  /** GA folded a long tail into an `(other)` row in this (dimensioned) report. */
+  otherRow: boolean;
+}
+
+/** Shape a runReport response (rows + metadata) into a TopValue. Pure — split out so the
+ *  {value, otherRow} composition is unit-testable without the GA client. */
+export function mapTopValue(
+  rows: { dimensionValues?: ({ value?: string | null } | undefined)[] | null }[] | null | undefined,
+  metadata: unknown,
+): TopValue {
+  return { value: pickTopValue(rows), otherRow: mapDataQuality(metadata).otherRow };
+}
+
+/** The single top dimension value (by `metric`, descending) for a property over a range,
+ *  plus whether GA folded a long tail into `(other)` in this (dimensioned) report — this
+ *  is the only place that flag can come from, since fetchRange's report has no dimensions. */
 export async function fetchTopValue(
   auth: OAuth2Client,
   propertyId: string,
   range: DateRange,
   dimension: string,
   metric: string,
-): Promise<string | null> {
+): Promise<TopValue> {
   const [report] = await data(auth).runReport({
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
     dimensions: [{ name: dimension }],
     metrics: [{ name: metric }],
-    orderBys: [{ metric: { metricName: metric }, desc: true }],
-    limit: 1,
+    orderBys: [{ metric: { metricName: metric }, desc: true }, { dimension: { dimensionName: dimension } }],
+    limit: 5,
   });
-  const value = report.rows?.[0]?.dimensionValues?.[0]?.value;
-  return value && value !== '(not set)' ? value : null;
-}
-
-/** Daily values of `metric` over a range, zero-filled and in chronological order. */
-export async function fetchDailySeries(
-  auth: OAuth2Client,
-  propertyId: string,
-  range: DateRange,
-  metric = 'activeUsers',
-): Promise<number[]> {
-  const [report] = await data(auth).runReport({
-    property: `properties/${propertyId}`,
-    dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
-    dimensions: [{ name: 'date' }],
-    metrics: [{ name: metric }],
-  });
-  const byDay = new Map<string, number>();
-  for (const row of report.rows ?? []) {
-    const day = row.dimensionValues?.[0]?.value;
-    if (day) byDay.set(day, Number(row.metricValues?.[0]?.value ?? 0));
-  }
-  return enumerateDays(range).map((day) => byDay.get(day) ?? 0);
+  return mapTopValue(report.rows, report.metadata);
 }
 
 export interface SiteUrl {
@@ -189,10 +216,12 @@ export function mapBreakdownRows(
     | null
     | undefined,
 ): BreakdownRow[] {
-  return (rows ?? []).map((r) => ({
-    name: r.dimensionValues?.[0]?.value ?? '(not set)',
-    value: Number(r.metricValues?.[0]?.value ?? 0),
-  }));
+  return (rows ?? [])
+    .filter((r) => r.dimensionValues?.[0]?.value !== OTHER_ROW)
+    .map((r) => ({
+      name: r.dimensionValues?.[0]?.value ?? '(not set)',
+      value: Number(r.metricValues?.[0]?.value ?? 0),
+    }));
 }
 
 /** Top-N values of `metric` by `dimension` for a property over a range (descending),
@@ -211,7 +240,7 @@ export async function fetchBreakdown(
     dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
     dimensions: [{ name: dimension }],
     metrics: [{ name: metric }],
-    orderBys: [{ metric: { metricName: metric }, desc: true }],
+    orderBys: [{ metric: { metricName: metric }, desc: true }, { dimension: { dimensionName: dimension } }],
     limit,
     ...(dimensionFilter ? { dimensionFilter: dimensionFilter as never } : {}),
   });
@@ -225,14 +254,26 @@ export interface DailyMetricsRow {
 
 type Row = { dimensionValues?: ({ value?: string | null } | undefined)[] | null; metricValues?: ({ value?: string | null } | undefined)[] | null };
 
+/** GA4 `date` dimension value (YYYYMMDD) → YYYY-MM-DD. */
+function ymdToIso(ymd: string): string {
+  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+}
+
 /** Merge a base report (date + [activeUsers,sessions,keyEvents]) and an AI report
- *  (date + [sessions]) into one zero-filled daily series over `days` (YYYYMMDD),
- *  converting the date to YYYY-MM-DD. Pure — split out for unit testing. */
-export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | null | undefined, days: string[]): DailyMetricsRow[] {
+ *  (date + [sessions]) over an explicit `expected` day list (YYYY-MM-DD, oldest→newest).
+ *  GA4's `keepEmptyRows: true` does NOT guarantee a row per requested date — real
+ *  responses can be sparse (a gap mid-range, a missing trailing day, etc., confirmed
+ *  against the live API) — so the date set comes from the caller, never from the
+ *  reports; any date GA omits is zero-filled. Pure — split for unit testing. */
+export function mapDailyMetricsRows(
+  base: Row[] | null | undefined,
+  ai: Row[] | null | undefined,
+  expected: string[],
+): DailyMetricsRow[] {
   const b = new Map<string, { a: number; s: number; k: number }>();
   for (const r of base ?? []) {
     const day = r.dimensionValues?.[0]?.value;
-    if (day) b.set(day, {
+    if (day) b.set(ymdToIso(day), {
       a: Number(r.metricValues?.[0]?.value ?? 0),
       s: Number(r.metricValues?.[1]?.value ?? 0),
       k: Number(r.metricValues?.[2]?.value ?? 0),
@@ -241,19 +282,28 @@ export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | 
   const aiMap = new Map<string, number>();
   for (const r of ai ?? []) {
     const day = r.dimensionValues?.[0]?.value;
-    if (day) aiMap.set(day, Number(r.metricValues?.[0]?.value ?? 0));
+    if (day) aiMap.set(ymdToIso(day), Number(r.metricValues?.[0]?.value ?? 0));
   }
-  return days.map((ymd) => {
-    const bv = b.get(ymd) ?? { a: 0, s: 0, k: 0 };
+  return expected.map((date) => {
+    const bv = b.get(date) ?? { a: 0, s: 0, k: 0 };
     return {
-      date: `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`,
-      metrics: { activeUsers: bv.a, sessions: bv.s, keyEvents: bv.k, aiSessions: aiMap.get(ymd) ?? 0 },
+      date,
+      metrics: { activeUsers: bv.a, sessions: bv.s, keyEvents: bv.k, aiSessions: aiMap.get(date) ?? 0 },
     };
   });
 }
 
-/** Daily {activeUsers, sessions, keyEvents, aiSessions} over a range, zero-filled. */
-export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, range: DateRange): Promise<DailyMetricsRow[]> {
+/** Daily {activeUsers, sessions, keyEvents, aiSessions} over the `days` days ending
+ *  yesterday in the property's OWN reporting time zone, zero-filled. `range` must be
+ *  the relative range for the same `days` count (see gaHistoryRange) — GA resolves it
+ *  server-side in that same property time zone, which the response echoes back in
+ *  `metadata.timeZone`, so no extra Admin API call is needed to learn it. */
+export async function fetchDailyMetrics(
+  auth: OAuth2Client,
+  propertyId: string,
+  range: DateRange,
+  days: number,
+): Promise<DailyMetricsRow[]> {
   const client = data(auth);
   const [[base], [aiRep]] = await Promise.all([
     client.runReport({
@@ -261,6 +311,7 @@ export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, 
       dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
       dimensions: [{ name: 'date' }],
       metrics: [{ name: 'activeUsers' }, { name: 'sessions' }, { name: 'keyEvents' }],
+      keepEmptyRows: true,
     }),
     client.runReport({
       property: `properties/${propertyId}`,
@@ -268,7 +319,9 @@ export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, 
       dimensions: [{ name: 'date' }],
       metrics: [{ name: 'sessions' }],
       dimensionFilter: AI_DIMENSION_FILTER as never,
+      keepEmptyRows: true,
     }),
   ]);
-  return mapDailyMetricsRows(base.rows, aiRep.rows, enumerateDays(range));
+  const timeZone = base.metadata?.timeZone || 'UTC';
+  return mapDailyMetricsRows(base.rows, aiRep.rows, expectedDaysInZone(timeZone, days));
 }
