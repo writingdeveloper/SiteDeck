@@ -29,6 +29,10 @@ export function isValidPropertyId(raw: string | null): raw is string {
  *
  * An ABSENT Origin means it is not a cross-site browser request (curl, a local script);
  * allowing it costs no security and keeps local tooling working.
+ *
+ * Assumes header keys are already lowercased, as Node's `http.IncomingMessage.headers`
+ * guarantees for real requests. A hand-built object with a capitalized key (e.g.
+ * `{ Origin: '...' }`) reads as "no origin" and is ALLOWED — keep test fixtures lowercase.
  */
 export function isSameOriginRequest(
   headers: { origin?: string | string[] | undefined; 'sec-fetch-site'?: string | string[] | undefined },

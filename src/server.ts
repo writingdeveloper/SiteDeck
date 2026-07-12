@@ -275,15 +275,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // CSRF guard for state-changing requests. The Host check above cannot stop a cross-site
-  // POST — that request genuinely IS addressed to our loopback host — so a website the user
-  // is visiting could otherwise rewrite settings (PSI key, GitHub PAT) or trigger runs.
-  if (req.method === 'POST' && !isSameOriginRequest(req.headers, allowedOrigins())) {
+  const url = new URL(req.url ?? '/', `http://localhost:${actualPort}`);
+
+  // Same-origin guard. The Host check above cannot stop a cross-site request — it genuinely
+  // IS addressed to our loopback host. Two rules:
+  //  - ANY state-changing method (everything but GET/HEAD) must be same-origin, so a future
+  //    PUT/PATCH/DELETE route can't silently bypass this.
+  //  - EVERY /api/ request must be same-origin, even a GET: /api/summary writes the history
+  //    store and fans out real GA4 calls as a side effect, so a cross-site
+  //    <img src=".../api/summary"> would burn the user's API quota and churn their store.
+  // Static assets, `/` and the OAuth routes stay open: a top-level navigation sends
+  // `Sec-Fetch-Site: none` with no Origin, which isSameOriginRequest allows.
+  const unsafeMethod = req.method !== 'GET' && req.method !== 'HEAD';
+  if ((unsafeMethod || url.pathname.startsWith('/api/')) && !isSameOriginRequest(req.headers, allowedOrigins())) {
     res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }).end('Forbidden (cross-site)');
     return;
   }
-
-  const url = new URL(req.url ?? '/', `http://localhost:${actualPort}`);
 
   if (url.pathname === '/api/summary') {
     try {
