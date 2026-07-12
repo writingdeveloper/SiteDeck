@@ -43,7 +43,7 @@ import {
 } from './github-runner';
 import { listenWithFallback } from './listen';
 import { escapeHtml } from './html';
-import { isReauthError, isValidPropertyId, parsePeriod } from './http-helpers';
+import { isReauthError, isSameOriginRequest, isValidPropertyId, parsePeriod } from './http-helpers';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '../public');
@@ -60,6 +60,11 @@ const pendingOAuthStates = new Set<string>();
 // port fallback (a desktop OAuth client accepts any localhost port).
 function oauthRedirectUri(): string {
   return `http://localhost:${actualPort}${OAUTH_CALLBACK_PATH}`;
+}
+
+// The origins our own frontend can legitimately be served from (we bind loopback only).
+function allowedOrigins(): string[] {
+  return [`http://localhost:${actualPort}`, `http://127.0.0.1:${actualPort}`];
 }
 
 // Conservative security headers on every response. The frontend loads only its
@@ -269,6 +274,15 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }).end('Forbidden');
     return;
   }
+
+  // CSRF guard for state-changing requests. The Host check above cannot stop a cross-site
+  // POST — that request genuinely IS addressed to our loopback host — so a website the user
+  // is visiting could otherwise rewrite settings (PSI key, GitHub PAT) or trigger runs.
+  if (req.method === 'POST' && !isSameOriginRequest(req.headers, allowedOrigins())) {
+    res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }).end('Forbidden (cross-site)');
+    return;
+  }
+
   const url = new URL(req.url ?? '/', `http://localhost:${actualPort}`);
 
   if (url.pathname === '/api/summary') {
