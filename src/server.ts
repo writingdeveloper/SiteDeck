@@ -237,6 +237,17 @@ interface VersionInfo {
   updateAvailable: boolean;
 }
 
+// A stray rejection — a background scheduler, a store write, `open()` — must not kill a
+// long-running local dashboard: log loudly and keep serving. An uncaughtException, by
+// contrast, leaves the process in an undefined state, so continuing is the riskier choice.
+process.on('unhandledRejection', (reason) => {
+  console.error('SiteDeck: unhandled rejection (continuing):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('SiteDeck: uncaught exception (exiting):', err);
+  process.exit(1);
+});
+
 let currentVersion: string | null = null;
 async function getCurrentVersion(): Promise<string> {
   if (currentVersion === null) {
@@ -529,7 +540,9 @@ listenWithFallback(server, PORT, 10, '127.0.0.1')
     if (!process.env.SITEDECK_NO_OPEN) {
       // 127.0.0.1 (not localhost) to match the loopback bind even when localhost
       // resolves to ::1.
-      void open(`http://127.0.0.1:${port}`);
+      open(`http://127.0.0.1:${port}`).catch((err: unknown) =>
+        console.error('SiteDeck: could not open a browser:', err),
+      );
     }
   })
   .catch((err: Error) => {
