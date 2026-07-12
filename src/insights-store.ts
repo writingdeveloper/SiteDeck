@@ -20,8 +20,11 @@ export interface InsightsSite {
   trend: number[];
 }
 
+/** Bump when the on-disk shape changes; loadStore rejects any other version. */
+export const INSIGHTS_VERSION = 1;
+
 export function emptyStore(): InsightsStore {
-  return { version: 1, lastRunAt: null, byUrl: {} };
+  return { version: INSIGHTS_VERSION, lastRunAt: null, byUrl: {} };
 }
 
 export function appendMeasurement(
@@ -55,7 +58,12 @@ export function summarize(store: InsightsStore, trendLength: number): InsightsSi
 }
 
 export function loadStore(filePath: string): Promise<InsightsStore> {
-  return loadJsonStore<InsightsStore>(filePath, emptyStore, (p) => Boolean((p as { byUrl?: unknown }).byUrl));
+  return loadJsonStore<InsightsStore>(
+    filePath,
+    emptyStore,
+    (p) => Boolean((p as { byUrl?: unknown }).byUrl),
+    INSIGHTS_VERSION,
+  );
 }
 
 export function saveStore(filePath: string, store: InsightsStore): Promise<void> {

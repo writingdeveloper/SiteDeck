@@ -1,40 +1,52 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { writeJsonAtomic } from './atomic';
 
-const dirs: string[] = [];
-async function makeDir(): Promise<string> {
+const made: string[] = [];
+async function tmpDir(): Promise<string> {
   const d = await mkdtemp(path.join(tmpdir(), 'sitedeck-atomic-'));
-  dirs.push(d);
+  made.push(d);
   return d;
 }
 afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
+  for (const d of made.splice(0)) await rm(d, { recursive: true, force: true });
 });
 
 describe('writeJsonAtomic', () => {
-  it('writes JSON that reads back identically and creates the parent dir', async () => {
-    const dir = await makeDir();
-    const file = path.join(dir, 'nested', 'data.json');
-    const value = { a: 1, b: ['x', 'y'], c: { d: true } };
-    await writeJsonAtomic(file, value);
-    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual(value);
+  it('동시 쓰기가 파일을 손상시키지 않는다 (항상 유효 JSON이고, 쓴 값 중 하나와 정확히 일치)', async () => {
+    const file = path.join(await tmpDir(), 'store.json');
+    // 페이로드를 크게 잡아, 고정 temp 이름이었다면 쓰기가 뒤섞이도록 강제한다.
+    const values = Array.from({ length: 12 }, (_, i) => ({ n: i, pad: 'x'.repeat(50_000) }));
+    await Promise.all(values.map((v) => writeJsonAtomic(file, v)));
+    const parsed = JSON.parse(await readFile(file, 'utf8')) as { n: number; pad: string };
+    expect(values).toContainEqual(parsed);
   });
 
-  it('leaves no temporary file behind', async () => {
-    const dir = await makeDir();
-    const file = path.join(dir, 'data.json');
+  it('성공 후 찌꺼기 .tmp 파일을 남기지 않는다', async () => {
+    const dir = await tmpDir();
+    const file = path.join(dir, 'store.json');
+    await Promise.all([1, 2, 3, 4, 5].map((n) => writeJsonAtomic(file, { n })));
+    expect((await readdir(dir)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('부모 디렉터리를 만든다', async () => {
+    const file = path.join(await tmpDir(), 'a', 'b', 'store.json');
     await writeJsonAtomic(file, { ok: true });
-    await expect(readFile(`${file}.tmp`, 'utf8')).rejects.toThrow();
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ ok: true });
   });
 
-  it('overwrites an existing file', async () => {
-    const dir = await makeDir();
-    const file = path.join(dir, 'data.json');
+  it('나중 쓰기가 이전 쓰기를 대체한다 (순차·비경합)', async () => {
+    const file = path.join(await tmpDir(), 'store.json');
     await writeJsonAtomic(file, { v: 1 });
     await writeJsonAtomic(file, { v: 2 });
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ v: 2 });
+  });
+
+  it.skipIf(process.platform === 'win32')('mode를 적용한다 (POSIX 전용 — Windows는 NTFS ACL이 우선)', async () => {
+    const file = path.join(await tmpDir(), 'secret.json');
+    await writeJsonAtomic(file, { k: 'v' }, { mode: 0o600 });
+    expect((await stat(file)).mode & 0o777).toBe(0o600);
   });
 });

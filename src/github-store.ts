@@ -31,8 +31,11 @@ export interface RepoSummary {
 
 const ZERO: DayCount = { views: 0, uniqueViews: 0, clones: 0, uniqueClones: 0 };
 
+/** Bump when the on-disk shape changes; loadStore rejects any other version. */
+export const GITHUB_VERSION = 1;
+
 export function emptyStore(): GithubStore {
-  return { version: 1, lastRunAt: null, byRepo: {} };
+  return { version: GITHUB_VERSION, lastRunAt: null, byRepo: {} };
 }
 
 /**
@@ -144,7 +147,12 @@ export function summarize(store: GithubStore, trendLength: number): RepoSummary[
 }
 
 export function loadStore(filePath: string): Promise<GithubStore> {
-  return loadJsonStore<GithubStore>(filePath, emptyStore, (p) => Boolean((p as { byRepo?: unknown }).byRepo));
+  return loadJsonStore<GithubStore>(
+    filePath,
+    emptyStore,
+    (p) => Boolean((p as { byRepo?: unknown }).byRepo),
+    GITHUB_VERSION,
+  );
 }
 
 export function saveStore(filePath: string, store: GithubStore): Promise<void> {

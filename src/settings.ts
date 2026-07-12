@@ -56,7 +56,8 @@ export async function getSettings(): Promise<Settings> {
 
 export async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
   const next = mergeSettings(await getSettings(), patch);
-  await writeJsonAtomic(CONFIG_JSON_PATH, next);
+  // config.json holds secrets (PSI key, GitHub PAT) — write it 0600 like token.json does.
+  await writeJsonAtomic(CONFIG_JSON_PATH, next, { mode: 0o600 });
   return next;
 }
 
