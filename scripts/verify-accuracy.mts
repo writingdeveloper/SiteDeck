@@ -104,7 +104,20 @@ for (const p of props) {
 }
 
 // 4) GSC 매칭: 스킴이 GA 스트림과 일치하는가
-const [siteUrls, gscSites] = await Promise.all([listSiteUrls(auth, props).catch(() => []), listGscSites(auth).catch(() => [])]);
+let gscListError: string | null = null;
+const [siteUrls, gscSites] = await Promise.all([
+  listSiteUrls(auth, props).catch((e: unknown) => {
+    gscListError = e instanceof Error ? e.message : String(e);
+    return [] as Awaited<ReturnType<typeof listSiteUrls>>;
+  }),
+  listGscSites(auth).catch((e: unknown) => {
+    gscListError = e instanceof Error ? e.message : String(e);
+    return [] as string[];
+  }),
+]);
+if (gscListError) {
+  report('SKIP', 'GSC 검사군', `사이트 목록 조회 실패 — ${gscListError}`);
+}
 const matched = matchSites(siteUrls, gscSites);
 let gscChecked = 0;
 for (const s of siteUrls) {
@@ -116,7 +129,12 @@ for (const s of siteUrls) {
   gscChecked++;
   const ga = parseSite(s.url);
   const gsc = parseSite(site);
-  const ok = gsc?.kind === 'domain' || gsc?.scheme === ga?.scheme;
+  if (!ga || !gsc) {
+    // 파싱 실패를 조용한 PASS로 흘리지 않는다 (undefined === undefined 함정).
+    report('FAIL', `${s.displayName}: GSC 스킴 정합`, `파싱 실패 — GA:${s.url} GSC:${site}`);
+    continue;
+  }
+  const ok = gsc.kind === 'domain' || gsc.scheme === ga.scheme;
   report(ok ? 'PASS' : 'FAIL', `${s.displayName}: GSC 스킴 정합`, `${s.url} → ${site}`);
 }
 // GSC에 검증된 사이트가 있는데 단 하나도 매칭되지 않았다면 matchSites 회귀를 의심해야 한다.

@@ -29,6 +29,8 @@ function sum(rows: DailyMetricsRow[], key: MetricKey): number {
 
 /** True when every date is exactly one calendar day after the previous one. */
 function contiguous(rows: DailyMetricsRow[]): boolean {
+  // i ∈ [1, rows.length-1] so both indices are in range — the casts are the loop invariant,
+  // not an assumption about the data.
   for (let i = 1; i < rows.length; i++) {
     const prev = Date.parse(`${(rows[i - 1] as DailyMetricsRow).date}T00:00:00Z`);
     const cur = Date.parse(`${(rows[i] as DailyMetricsRow).date}T00:00:00Z`);
@@ -63,6 +65,9 @@ function checkWindow(rows: DailyMetricsRow[], period: number, totals: RangeTotal
  *
  * The previous window is only checked when the series is long enough to contain it (a
  * missing window must never raise a false alarm).
+ *
+ * @param daily Daily rows in ascending date order (oldest→newest), as produced by
+ *   `mapDailyMetricsRows`. Out-of-order input would be reported as a contiguity mismatch.
  */
 export function checkIntegrity(
   daily: DailyMetricsRow[],
