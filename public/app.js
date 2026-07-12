@@ -293,7 +293,10 @@ function historyBlock(history) {
     .map(([k, key]) => {
       const weekly = history.weekly[k];
       const lastWeek = weekly[weekly.length - 1] ?? 0;
-      return `<li>${escapeHtml(t(key))} <span class="muted">${escapeHtml(trendSparkText(weekly))} ${fmtNum(lastWeek)} · WoW ${escapeHtml(wowText(history.wow[k], getLocale()))}</span></li>`;
+      const w = wowText(history.wow[k], getLocale());
+      // "0→N"에는 이번 주 값이 이미 들어 있어 단독 숫자를 병기하면 중복이다.
+      const thisWeek = w.startsWith("0→") ? "" : ` ${fmtNum(lastWeek)}`;
+      return `<li>${escapeHtml(t(key))} <span class="muted">${escapeHtml(trendSparkText(weekly))}${escapeHtml(thisWeek)} · WoW ${escapeHtml(w)}</span></li>`;
     })
     .join("");
   if (!rows) return "";
