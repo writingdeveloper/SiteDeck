@@ -20,15 +20,26 @@ export function isValidPropertyId(raw: string | null): raw is string {
 }
 
 /**
- * Is this state-changing request same-origin?
+ * Is this request same-origin? Gates both state-changing requests (POST/etc.) AND every
+ * `/api/*` request including read-only GETs — see server.ts's same-origin guard: /api/summary
+ * is a GET but writes the history store and fans out real GA4 calls, so it needs this too.
  *
- * The DNS-rebinding guard only checks the Host header — which a cross-site POST from any
- * website the user happens to be visiting legitimately satisfies, because the request
- * really IS addressed to localhost:PORT. Browsers always attach `Origin` to a cross-origin
- * POST, so a present-but-foreign Origin is the signal.
+ * The DNS-rebinding guard only checks the Host header — which a cross-site request from any
+ * website the user happens to be visiting legitimately satisfies, because the request really
+ * IS addressed to localhost:PORT.
  *
- * An ABSENT Origin means it is not a cross-site browser request (curl, a local script);
- * allowing it costs no security and keeps local tooling working.
+ * For POST — the security-critical case, since it's what protects the PSI key and GitHub PAT
+ * in /api/settings — this check is airtight: a browser always attaches a foreign `Origin` to
+ * a cross-site POST, so a present-but-foreign Origin is a reliable signal.
+ *
+ * For GET, an absent Origin is NOT proof the request isn't cross-site: a no-cors cross-site
+ * sub-resource request (e.g. `<img src=".../api/summary">`) sends NO Origin at all, same as a
+ * same-site request or curl. What actually blocks that `<img>` is `Sec-Fetch-Site: cross-site`
+ * below — so the /api/* GET protection rests entirely on Sec-Fetch-Site support (Chrome 76+,
+ * Firefox 90+, Safari 16.4+). On an older browser that never sends Sec-Fetch-Site, a cross-site
+ * GET with no Origin falls through both checks and reaches the handler — a residual gap, but
+ * one that only affects read-only endpoints on legacy browsers, never the Origin-protected
+ * POSTs.
  *
  * Assumes header keys are already lowercased, as Node's `http.IncomingMessage.headers`
  * guarantees for real requests. A hand-built object with a capitalized key (e.g.

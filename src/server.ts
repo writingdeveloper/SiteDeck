@@ -28,7 +28,16 @@ import {
   listSiteUrls,
   type DailyMetricsRow,
 } from './ga';
-import { loadGaHistory, saveGaHistory, upsertDailyMetrics, historyDigest, weeklySeries, wow } from './ga-store';
+import {
+  emptyGaHistory,
+  loadGaHistory,
+  saveGaHistory,
+  upsertDailyMetrics,
+  historyDigest,
+  weeklySeries,
+  wow,
+  type GaHistory,
+} from './ga-store';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
 import { getOnPageReport } from './onpage';
 import { mapPool } from './concurrency';
@@ -125,7 +134,19 @@ async function buildSummary(period: Period): Promise<{
 
   // Daily-history backfill: fetch a fixed 90-day window per property (independent of
   // the view period) and upsert it, so history accumulates as the app is used.
-  let history = await loadGaHistory(GA_HISTORY_STORE_PATH);
+  let history: GaHistory;
+  let historyReadable = true;
+  try {
+    history = await loadGaHistory(GA_HISTORY_STORE_PATH);
+  } catch (err) {
+    // loadGaHistory FAILED TO READ the store (not corruption — that case already comes back
+    // as an empty history, not a throw; see store-io.ts's loadJsonStore). Serve this run from
+    // a blank history, but do NOT persist below: overwriting a file we couldn't even read
+    // would destroy data that may still be perfectly good.
+    console.error('SiteDeck: ga-history unreadable — running without it and NOT persisting:', err);
+    history = emptyGaHistory();
+    historyReadable = false;
+  }
   const historyRange = gaHistoryRange(GA_HISTORY_FETCH_DAYS);
 
   const results = (
@@ -180,9 +201,14 @@ async function buildSummary(period: Period): Promise<{
     })
   ).filter((r): r is { propertyId: string; series: DailyMetricsRow[]; summary: SiteSummary } => r !== null);
 
-  // Upsert sequentially (never mutate the shared store concurrently), persist once.
+  // Upsert sequentially (never mutate the shared store concurrently), persist once — unless
+  // the initial load above failed to read the real file, in which case `history` is a blank
+  // stand-in and saving it would clobber the (possibly perfectly fine) file we never got to
+  // inspect.
   for (const r of results) history = upsertDailyMetrics(history, r.propertyId, r.series, GA_HISTORY_RETENTION_DAYS);
-  await saveGaHistory(GA_HISTORY_STORE_PATH, history).catch((e) => console.error('ga-history save failed (non-fatal):', e));
+  if (historyReadable) {
+    await saveGaHistory(GA_HISTORY_STORE_PATH, history).catch((e) => console.error('ga-history save failed (non-fatal):', e));
+  }
 
   const sites = results.map((r) => ({ ...r.summary, history: historyDigest(history, r.propertyId) }));
 
@@ -277,7 +303,13 @@ async function getVersion(): Promise<VersionInfo> {
   return { current, latest, updateAvailable: latest !== null && latest !== current };
 }
 
-const server = http.createServer(async (req, res) => {
+// The actual request logic, extracted into a named async function so it can be wrapped in a
+// top-level .catch below. Node's http.Server does NOT catch a rejection thrown by an async
+// listener — an uncaught rejection here used to crash the process; now that
+// unhandledRejection logs-and-continues (see below), it would instead leave the response
+// never written and the browser spinning forever. Wrapping this call, not this function body,
+// is what fixes that.
+async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   for (const [k, v] of Object.entries(securityHeaders())) res.setHeader(k, v);
   // DNS-rebinding guard: only serve requests addressed to our own loopback host
   // (a malicious site rebinding to 127.0.0.1:PORT carries its own Host header).
@@ -296,8 +328,14 @@ const server = http.createServer(async (req, res) => {
   //  - EVERY /api/ request must be same-origin, even a GET: /api/summary writes the history
   //    store and fans out real GA4 calls as a side effect, so a cross-site
   //    <img src=".../api/summary"> would burn the user's API quota and churn their store.
-  // Static assets, `/` and the OAuth routes stay open: a top-level navigation sends
-  // `Sec-Fetch-Site: none` with no Origin, which isSameOriginRequest allows.
+  // Static assets, `/`, and `/oauth/*` stay open — not because isSameOriginRequest would
+  // allow them (it is never even consulted for them: the condition below only fires for
+  // unsafe methods or /api/ paths), but because the condition itself excludes plain GET/HEAD
+  // requests outside /api/. This is required, not incidental: `/oauth/callback` is a redirect
+  // FROM accounts.google.com, so it legitimately arrives cross-site — a cross-site top-level
+  // navigation sends `Sec-Fetch-Site: cross-site` (NOT `none`, and with no Origin match), so
+  // "tightening" this guard to cover every path would 403 every OAuth callback and break
+  // sign-in.
   const unsafeMethod = req.method !== 'GET' && req.method !== 'HEAD';
   if ((unsafeMethod || url.pathname.startsWith('/api/')) && !isSameOriginRequest(req.headers, allowedOrigins())) {
     res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }).end('Forbidden (cross-site)');
@@ -357,9 +395,16 @@ const server = http.createServer(async (req, res) => {
         fetchBreakdown(auth, propertyId, range, 'pagePath', 'screenPageViews', DETAIL_TOPN),
         fetchBreakdown(auth, propertyId, range, 'sessionSource', 'sessions', DETAIL_TOPN, AI_DIMENSION_FILTER),
       ]);
-      const gh = await loadGaHistory(GA_HISTORY_STORE_PATH);
-      const hasHistory = Object.keys(gh.byProperty[propertyId]?.days ?? {}).length > 0;
-      const history = hasHistory
+      // Read-only here — no save follows, so a failed read just degrades to "no history"
+      // for this one request instead of a 500 or (worse) persisting over the real file.
+      let gh: GaHistory | null;
+      try {
+        gh = await loadGaHistory(GA_HISTORY_STORE_PATH);
+      } catch (err) {
+        console.error('SiteDeck: ga-history unreadable for site-detail — serving without it:', err);
+        gh = null;
+      }
+      const history = gh && Object.keys(gh.byProperty[propertyId]?.days ?? {}).length > 0
         ? {
             weekly: {
               activeUsers: weeklySeries(gh, propertyId, 'activeUsers', GA_HISTORY_WEEKS),
@@ -520,6 +565,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   await serveStatic(res, url.pathname);
+}
+
+const server = http.createServer((req, res) => {
+  void handleRequest(req, res).catch((err: unknown) => {
+    console.error('SiteDeck: request handler failed:', err);
+    if (!res.headersSent) json(res, 500, errorBody(err));
+    res.end();
+  });
 });
 
 // Bind to loopback only — never 0.0.0.0 — so this stays a local-only tool and

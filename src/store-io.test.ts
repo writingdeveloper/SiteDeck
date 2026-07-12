@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { writeFile, readdir, mkdtemp, rm } from 'node:fs/promises';
+import { writeFile, readdir, mkdtemp, mkdir, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { loadJsonStore, MAX_BACKUPS } from './store-io';
@@ -24,6 +24,22 @@ describe('loadJsonStore', () => {
   it('파일이 없으면 빈 스토어 (백업도 안 만든다)', async () => {
     const dir = await tmpDir();
     expect(await loadJsonStore(path.join(dir, 'x.json'), empty, isValid, 1)).toEqual(empty());
+    expect(await baks(dir)).toEqual([]);
+  });
+
+  it('ENOENT가 아닌 읽기 실패(디렉터리를 가리킴)는 reject하고 파일에 손대지 않는다 (.bak도 안 만든다)', async () => {
+    const dir = await tmpDir();
+    const target = path.join(dir, 'x.json');
+    // A directory at the target path makes readFile() reject with something other than
+    // ENOENT — EISDIR, reliably reproduced on this machine — standing in for EMFILE/EIO/
+    // EBUSY/EACCES: any failure to READ, as opposed to a successfully-read-but-bad-content
+    // file. This MUST reject, not silently recover: recovering here would rename away a path
+    // we never even managed to read, which could be a perfectly good file blocked only by a
+    // transient OS error (see loadJsonStore's doc comment).
+    await mkdir(target);
+    await expect(loadJsonStore(target, empty, isValid, 1)).rejects.toThrow();
+    // Untouched: still the same directory — not renamed to a .bak, not replaced.
+    expect((await stat(target)).isDirectory()).toBe(true);
     expect(await baks(dir)).toEqual([]);
   });
 

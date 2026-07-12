@@ -13,8 +13,10 @@ const inFlight = new Map<string, Promise<void>>();
  * gap this closes is losing the rename itself (a lost update, not corruption, since the prior
  * file remains intact and valid).
  *
- * Windows cannot open a directory as a file handle, so this throws there and we ignore it:
- * NTFS journals rename metadata, so the durability gap this closes is a POSIX concern.
+ * On Windows, `open(dir, 'r')` itself SUCCEEDS (measured on this machine) — it is
+ * `FileHandle.sync()` that throws `EPERM`, since Windows has no equivalent of fsync-ing a
+ * directory handle. We ignore that: NTFS journals rename metadata, so the durability gap
+ * this closes is a POSIX concern.
  */
 async function syncDir(dir: string): Promise<void> {
   try {
@@ -25,7 +27,8 @@ async function syncDir(dir: string): Promise<void> {
       await dh.close();
     }
   } catch {
-    // EISDIR/EPERM (Windows), EINVAL (some filesystems) — deliberately non-fatal.
+    // EPERM from FileHandle.sync() on Windows; EISDIR/EINVAL from open() itself on some other
+    // filesystems — deliberately non-fatal either way.
   }
 }
 

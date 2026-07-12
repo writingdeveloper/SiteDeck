@@ -8,9 +8,20 @@ import { type GithubStore, emptyStore, loadStore, saveStore, upsertDays, putSnap
 let store: GithubStore = emptyStore();
 let measuring = false;
 let lastErrors: { repo: string; message: string }[] = [];
+// False when the initial load below FAILED TO READ (not "was corrupt" — loadStore already
+// recovers that case on its own and still resolves) the real store. `store` above is then
+// just the blank fallback, and letting runMeasurement's saveStore write it out would clobber
+// a file we never actually got to inspect. Stays false for this process's whole lifetime; the
+// next process start retries the read from scratch.
+let storeReadable = true;
 
 export async function initGithub(): Promise<void> {
-  store = await loadStore(GITHUB_STORE_PATH);
+  try {
+    store = await loadStore(GITHUB_STORE_PATH);
+  } catch (err) {
+    console.error('SiteDeck: github store unreadable — running without it and NOT persisting:', err);
+    storeReadable = false;
+  }
 }
 
 export function getGithubState() {
@@ -46,7 +57,9 @@ async function runMeasurement(): Promise<void> {
         lastErrors.push({ repo: fullName, message: err instanceof Error ? err.message : String(err) });
       }
     });
-    await saveStore(GITHUB_STORE_PATH, store);
+    // Skip the save entirely if the initial load couldn't read the real file (see
+    // storeReadable's comment above) — never persist over a file we failed to read.
+    if (storeReadable) await saveStore(GITHUB_STORE_PATH, store);
   } catch (err) {
     lastErrors.push({ repo: '(run)', message: err instanceof Error ? err.message : String(err) });
   } finally {

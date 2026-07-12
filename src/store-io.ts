@@ -1,5 +1,5 @@
 import { readFile, readdir, rename, unlink } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { writeJsonAtomic } from './atomic';
 
@@ -9,10 +9,22 @@ export const MAX_BACKUPS = 3;
 /**
  * Load a JSON store.
  *
- * A corrupt file, an unexpected shape, or a `version` we don't understand is NOT silently
- * discarded: the file is moved to a timestamped .bak, the reset is LOGGED (the user's
- * accumulated history is going away — they should be able to find out why), and an empty
- * store is returned. Old backups are pruned to MAX_BACKUPS.
+ * Two failure modes are handled completely differently, on purpose:
+ *
+ * 1. We FAILED TO READ the file (anything but ENOENT — EMFILE, EIO, EBUSY, EACCES, a
+ *    transient AV/indexer lock…). This says nothing about the file's content: it may be
+ *    perfectly good. We NEVER route this into recovery — we rethrow and let the caller
+ *    decide how to degrade for this run without persisting over it. This matters because the
+ *    stores here are NOT fully re-fetchable: ga-history.json retains 365 days but only the
+ *    newest 90 are re-fetched, github.json retains 90 days from a GitHub API that only serves
+ *    14, and insights.json (PSI history) cannot be rebuilt at all. Silently treating an I/O
+ *    error as "corrupt" would rename a good file away and let the next save overwrite it with
+ *    an empty store — the exact data-destruction bug this function exists to prevent.
+ * 2. The file WAS read but its content is bad — invalid JSON, wrong shape, or a `version` we
+ *    don't understand. Only THIS is recovery's job: the file is moved to a timestamped .bak,
+ *    the reset is logged to stderr for diagnostics (surfacing it in the UI is a known backlog
+ *    item — a packaged Electron app has no console a user will ever see), and an empty store
+ *    is returned. Old backups are pruned to MAX_BACKUPS.
  *
  * `expectedVersion` is optional: callers that pass it get the version check, callers that
  * don't keep the previous behaviour.
@@ -23,10 +35,20 @@ export async function loadJsonStore<T>(
   isValid: (parsed: unknown) => boolean,
   expectedVersion?: number,
 ): Promise<T> {
-  if (!existsSync(filePath)) return empty();
+  let raw: string;
+  try {
+    raw = await readFile(filePath, 'utf8');
+  } catch (err) {
+    // First run — nothing to recover.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return empty();
+    // Any OTHER I/O error means we could not even read the file — see the doc comment above.
+    // Never destroy data we merely failed to read.
+    throw err;
+  }
+
   let reason: string;
   try {
-    const parsed: unknown = JSON.parse(await readFile(filePath, 'utf8'));
+    const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') throw new Error('not an object');
     if (expectedVersion !== undefined) {
       const version = (parsed as { version?: unknown }).version;
@@ -46,7 +68,10 @@ export async function loadJsonStore<T>(
 /** Move an unreadable store aside — loudly — and prune old backups. */
 async function recoverStore(filePath: string, reason: string): Promise<void> {
   const name = path.basename(filePath);
-  const bak = `${filePath}.${Date.now()}.bak`;
+  // Timestamp-first (so pruneBackups' lexicographic sort stays chronological) plus a short
+  // random suffix, so two recoveries landing in the same millisecond never collide and
+  // silently replace each other's backup.
+  const bak = `${filePath}.${Date.now()}.${randomBytes(3).toString('hex')}.bak`;
   try {
     await rename(filePath, bak);
   } catch (err) {
@@ -54,6 +79,9 @@ async function recoverStore(filePath: string, reason: string): Promise<void> {
     console.error(`SiteDeck: ${name} is unreadable (${reason}) and could not be backed up:`, err);
     return;
   }
+  // Logged to stderr for diagnostics — Electron spawns this process with stderr 'inherit', but
+  // a packaged Windows GUI app has no console a user will ever see this in. Surfacing this
+  // reset in the UI itself is a known backlog item, not something a user can discover today.
   console.error(`SiteDeck: ${name} is unreadable (${reason}) — starting fresh. Previous file kept at ${bak}`);
   await pruneBackups(filePath).catch(() => {});
 }
@@ -62,13 +90,45 @@ async function recoverStore(filePath: string, reason: string): Promise<void> {
 async function pruneBackups(filePath: string): Promise<void> {
   const dir = path.dirname(filePath);
   const prefix = `${path.basename(filePath)}.`;
-  // Names are `<store>.<epoch-ms>.bak`, so lexicographic sort == chronological sort.
+  // Names are `<store>.<epoch-ms>.<hex>.bak` — epoch-ms sorts first, so lexicographic sort ==
+  // chronological sort (the random suffix only ever breaks a same-millisecond tie).
   const found = (await readdir(dir)).filter((f) => f.startsWith(prefix) && f.endsWith('.bak')).sort();
   for (const f of found.slice(0, Math.max(0, found.length - MAX_BACKUPS))) {
     await unlink(path.join(dir, f)).catch(() => {});
   }
 }
 
+/**
+ * Delete stale `<basename>.<pid>.<hex>.tmp` siblings left behind by a process that died
+ * mid-write (writeJsonAtomic's temp name — see atomic.ts). This is ordinary here, not
+ * exotic: Electron kills the server on quit, and /api/summary writes ga-history.json on
+ * every call, so quitting mid-refresh happens regularly and nothing else sweeps the litter.
+ *
+ * Only ever removes temps that do NOT belong to the current process — never race our own
+ * in-flight write.
+ */
+async function sweepStaleTemps(filePath: string): Promise<void> {
+  const dir = path.dirname(filePath);
+  const prefix = `${path.basename(filePath)}.`;
+  const mine = `.${process.pid}.`;
+  let found: string[];
+  try {
+    found = (await readdir(dir)).filter((f) => f.startsWith(prefix) && f.endsWith('.tmp'));
+  } catch {
+    return;
+  }
+  for (const f of found) {
+    if (f.includes(mine)) continue; // could be our own in-flight write — never touch it
+    await unlink(path.join(dir, f)).catch(() => {});
+  }
+}
+
 export async function saveJsonStore<T>(filePath: string, store: T): Promise<void> {
   await writeJsonAtomic(filePath, store);
+  // Swept on save (not load): saves happen far more often than process starts (every
+  // /api/summary call, every measurement run), so litter from a killed-mid-write process gets
+  // cleaned up promptly. Doing it here also means we only ever sweep once we've proven the
+  // directory is writable, instead of adding filesystem work to loadJsonStore's read path,
+  // which Fix 1 above needs to stay as simple and auditable as possible.
+  await sweepStaleTemps(filePath).catch(() => {});
 }

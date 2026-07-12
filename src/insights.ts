@@ -23,9 +23,20 @@ import { mapPool } from './concurrency';
 let store: InsightsStore = emptyStore();
 let measuring = false;
 let lastErrors: { url: string; message: string }[] = [];
+// False when the initial load below FAILED TO READ (not "was corrupt" — loadStore already
+// recovers that case on its own and still resolves) the real store. `store` above is then
+// just the blank fallback, and letting runMeasurement's saveStore write it out would clobber
+// a file we never actually got to inspect. Stays false for this process's whole lifetime; the
+// next process start retries the read from scratch.
+let storeReadable = true;
 
 export async function initInsights(): Promise<void> {
-  store = await loadStore(INSIGHTS_PATH);
+  try {
+    store = await loadStore(INSIGHTS_PATH);
+  } catch (err) {
+    console.error('SiteDeck: insights store unreadable — running without it and NOT persisting:', err);
+    storeReadable = false;
+  }
 }
 
 export function getInsightsState() {
@@ -62,7 +73,9 @@ async function runMeasurement(): Promise<void> {
         lastErrors.push({ url: site.url, message: err instanceof Error ? err.message : String(err) });
       }
     });
-    await saveStore(INSIGHTS_PATH, store);
+    // Skip the save entirely if the initial load couldn't read the real file (see
+    // storeReadable's comment above) — never persist over a file we failed to read.
+    if (storeReadable) await saveStore(INSIGHTS_PATH, store);
   } catch (err) {
     lastErrors.push({ url: '(run)', message: err instanceof Error ? err.message : String(err) });
   } finally {
