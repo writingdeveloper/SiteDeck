@@ -26,6 +26,7 @@ import {
   fetchTopValue,
   listProperties,
   listSiteUrls,
+  type DailyMetricsRow,
 } from './ga';
 import { loadGaHistory, saveGaHistory, upsertDailyMetrics, historyDigest, weeklySeries, wow } from './ga-store';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
@@ -125,11 +126,13 @@ async function buildSummary(period: Period): Promise<{
     await mapPool(props, GA_CONCURRENCY, async (p) => {
       try {
         const gscSiteUrl = gscMatch.get(p.propertyId);
-        const [cur, prev, topPage, topSource, daily, aiCur, aiPrev, search] = await Promise.all([
+        const [cur, prev, topPage, topSource, { rows: daily }, aiCur, aiPrev, search] = await Promise.all([
           fetchRange(auth, p.propertyId, ranges.current),
           fetchRange(auth, p.propertyId, ranges.previous),
           fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
           fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
+          // .unexpectedDates/.sampleUnexpectedDate (see src/ga.ts's countUnexpectedDates) are
+          // deliberately unused here — that signal is release-gate-only for now (verify-accuracy.mts).
           fetchDailyMetrics(auth, p.propertyId, historyRange, GA_HISTORY_FETCH_DAYS),
           fetchAiSessions(auth, p.propertyId, ranges.current),
           fetchAiSessions(auth, p.propertyId, ranges.previous),
@@ -169,7 +172,7 @@ async function buildSummary(period: Period): Promise<{
         return null;
       }
     })
-  ).filter((r): r is { propertyId: string; series: Awaited<ReturnType<typeof fetchDailyMetrics>>; summary: SiteSummary } => r !== null);
+  ).filter((r): r is { propertyId: string; series: DailyMetricsRow[]; summary: SiteSummary } => r !== null);
 
   // Upsert sequentially (never mutate the shared store concurrently), persist once.
   for (const r of results) history = upsertDailyMetrics(history, r.propertyId, r.series, GA_HISTORY_RETENTION_DAYS);

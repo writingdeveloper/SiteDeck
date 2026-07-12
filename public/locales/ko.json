@@ -156,6 +156,6 @@
   "quality.thresholded": "임계 처리",
   "quality.otherRow": "일부가 (기타)로 합산됨",
   "quality.badgeLabel": "데이터 품질",
-  "integrity.mismatch": "내부 교차검증 불일치 ({fields}) — 이 수치를 신뢰하지 마세요. GA의 특성이 아니라 SiteDeck의 버그입니다.",
+  "integrity.mismatch": "교차검증 불일치 ({fields}): 일별 시리즈와 기간 총계가 어긋나므로 이 수치는 틀릴 수 있습니다. 원인은 SiteDeck 버그일 수도, 대용량에서의 GA 추정치나 GA 데이터 임계 처리일 수도 있습니다.",
   "integrity.badgeLabel": "무결성 검사 실패"
 }

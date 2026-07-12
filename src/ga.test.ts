@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapBreakdownRows, mapDailyMetricsRows, pickTopValue } from './ga';
+import { mapBreakdownRows, mapDailyMetricsRows, pickTopValue, countUnexpectedDates } from './ga';
 import { mapDataQuality, mapTopValue } from './ga';
 
 describe('mapBreakdownRows', () => {
@@ -72,6 +72,47 @@ describe('mapDailyMetricsRows', () => {
       { date: '2026-02-04', metrics: { activeUsers: 7, sessions: 8, keyEvents: 0, aiSessions: 2 } },
       { date: '2026-02-05', metrics: { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0 } },
     ]);
+  });
+});
+
+describe('countUnexpectedDates', () => {
+  const expected3 = ['2026-01-01', '2026-01-02', '2026-01-03'];
+
+  it('GA가 반환한 날짜가 모두 expected 안에 있으면 0', () => {
+    const base = [
+      { dimensionValues: [{ value: '20260101' }], metricValues: [{ value: '10' }, { value: '20' }, { value: '2' }] },
+      { dimensionValues: [{ value: '20260102' }], metricValues: [{ value: '5' }, { value: '9' }, { value: '1' }] },
+    ];
+    expect(countUnexpectedDates(base, expected3)).toBe(0);
+  });
+
+  it('GA가 expected 밖의 날짜를 반환하면 그 개수 — 창이 하루 밀린 모양(타임존 버그 등)을 잡아낸다', () => {
+    // expected는 2026-01-01..03인데 GA는 하루 밀린 2026-01-02..04로 응답 — 01-04(밖)이 1개.
+    const base = [
+      { dimensionValues: [{ value: '20260102' }], metricValues: [{ value: '1' }, { value: '1' }, { value: '0' }] },
+      { dimensionValues: [{ value: '20260103' }], metricValues: [{ value: '1' }, { value: '1' }, { value: '0' }] },
+      { dimensionValues: [{ value: '20260104' }], metricValues: [{ value: '1' }, { value: '1' }, { value: '0' }] },
+    ];
+    expect(countUnexpectedDates(base, expected3)).toBe(1);
+  });
+
+  it('창이 통째로 밀리고 값이 전부 0이어도(제로 트래픽) 반환된 날짜는 전부 기대 밖 — ' +
+    '합 불변식(checkIntegrity)은 0===0이라 못 잡지만 이 검사는 잡는다', () => {
+    const base = [
+      { dimensionValues: [{ value: '20260110' }], metricValues: [{ value: '0' }, { value: '0' }, { value: '0' }] },
+      { dimensionValues: [{ value: '20260111' }], metricValues: [{ value: '0' }, { value: '0' }, { value: '0' }] },
+    ];
+    expect(countUnexpectedDates(base, expected3)).toBe(2);
+  });
+
+  it('null/undefined/빈 base는 0 (기대 밖 날짜가 있을 수 없음)', () => {
+    expect(countUnexpectedDates(null, expected3)).toBe(0);
+    expect(countUnexpectedDates(undefined, expected3)).toBe(0);
+    expect(countUnexpectedDates([], expected3)).toBe(0);
+  });
+
+  it('날짜 차원 값이 없는 행은 세지 않는다', () => {
+    expect(countUnexpectedDates([{}], expected3)).toBe(0);
   });
 });
 

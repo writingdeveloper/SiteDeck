@@ -59,9 +59,19 @@ function checkWindow(rows: DailyMetricsRow[], period: number, totals: RangeTotal
  * — or a sparse/non-contiguous series — makes the two disagree. That is exactly the bug
  * class this guard exists to catch (both were shipped and caught in Spec 1).
  *
- * Caveat: if GA applied data thresholding to the dimensioned report, a mismatch can be
- * GA's doing rather than ours — SiteSummary.dataQuality.thresholded surfaces that
- * separately, so the two signals are read together.
+ * Caveat: a mismatch here is NOT necessarily a SiteDeck bug. Three GA-side causes can
+ * legitimately produce one, none of which SiteSummary.dataQuality.thresholded can rule
+ * out — that flag reflects fetchRange's dimensionless report, while fetchDailyMetrics
+ * (src/ga.ts) reads only metadata.timeZone off the dimensioned daily report and discards
+ * the rest of its metadata, so the daily report's OWN subjectToThresholding is never
+ * captured; the two are not the same signal and cannot be "read together." The three
+ * causes: (1) above a cardinality threshold GA4 estimates sessions/activeUsers with
+ * HyperLogLog++ (~1.6–3% error), so at real traffic volumes the daily sums and the
+ * period total can legitimately disagree; (2) GA data thresholding can apply to this
+ * dimensioned daily report without applying to the dimensionless total, or vice versa;
+ * (3) a midnight-rollover race between GA's server-side `yesterday` and our local
+ * computation. A `sessions(...)` mismatch on a HIGH-TRAFFIC property should be
+ * investigated as GA estimation FIRST, before assuming a SiteDeck bug.
  *
  * The previous window is only checked when the series is long enough to contain it (a
  * missing window must never raise a false alarm).

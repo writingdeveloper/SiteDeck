@@ -156,6 +156,6 @@
   "quality.thresholded": "阈值处理",
   "quality.otherRow": "部分并入(其他)",
   "quality.badgeLabel": "数据质量",
-  "integrity.mismatch": "内部交叉校验不一致（{fields}）— 请勿信任这些数字。这是 SiteDeck 的缺陷，而非 GA 的特性。",
+  "integrity.mismatch": "交叉校验不一致（{fields}）：每日序列与期间总计不符，这些数字可能有误。原因可能是 SiteDeck 缺陷、GA 在大数据量下的估算，或 GA 的数据阈值处理。",
   "integrity.badgeLabel": "完整性校验失败"
 }
