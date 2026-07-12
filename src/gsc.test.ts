@@ -125,6 +125,15 @@ describe('matchSites', () => {
     const m = matchSites([{ propertyId: '1', url: 'https://x.com' }], ['https://x.com/shop/', 'https://x.com/']);
     expect(m.get('1')).toBe('https://x.com/');
   });
+
+  it('경로 경계를 지킨다 — /shop 속성이 /shopping을 삼키지 않음', () => {
+    expect(matchSites([{ propertyId: '1', url: 'https://x.com/shopping/checkout' }], ['https://x.com/shop']).size).toBe(0);
+  });
+
+  it('후행 슬래시 차이는 같은 경로로 취급', () => {
+    const m = matchSites([{ propertyId: '1', url: 'https://x.com/blog' }], ['https://x.com/blog/']);
+    expect(m.get('1')).toBe('https://x.com/blog/');
+  });
 });
 
 describe('parseGscSites', () => {

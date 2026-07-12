@@ -74,7 +74,11 @@ export function matchSites(
     const gaPath = ga.path ?? '/';
     const candidates = parsed.filter((c) => {
       if (c.kind === 'domain') return c.host === ga.host || ga.host.endsWith(`.${c.host}`);
-      return c.host === ga.host && gaPath.startsWith(c.path ?? '/'); // 경로 포함(A5)
+      // Path containment must respect segment boundaries: a candidate registered as
+      // `https://x.com/shop` must not swallow `/shopping/...`. Normalize the trailing
+      // slash, then require an exact match or a `/`-terminated prefix.
+      const base = (c.path ?? '/').replace(/\/+$/, '');
+      return c.host === ga.host && (base === '' || gaPath === base || gaPath.startsWith(`${base}/`));
     });
     if (candidates.length === 0) continue;
     candidates.sort((a, b) => {
