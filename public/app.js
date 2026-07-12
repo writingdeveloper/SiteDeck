@@ -90,6 +90,15 @@ function dqBadge(dq) {
   return ` <span class="dq-badge" title="${escapeHtml(text)}" aria-label="${escapeHtml(t("quality.badgeLabel") + ": " + text)}">⚠</span>`;
 }
 
+// Loud badge when our own cross-check (daily series vs period totals) disagrees. Unlike
+// dqBadge (a GA data caveat), this means SiteDeck's numbers are internally inconsistent.
+function integrityBadge(integrity) {
+  if (!integrity || integrity.ok) return "";
+  const fields = integrity.mismatches.join(", ");
+  const text = t("integrity.mismatch", { fields });
+  return ` <span class="integrity-badge" title="${escapeHtml(text)}" aria-label="${escapeHtml(t("integrity.badgeLabel") + ": " + fields)}" tabindex="0">🛑</span>`;
+}
+
 function sparkline(values, label = "", w = 84, h = 24) {
   if (!values || values.length === 0) return "";
   const max = Math.max(...values, 1);
@@ -352,7 +361,7 @@ function render() {
     .map(
       (s) => `
       <tr class="site-row" data-prop="${escapeHtml(s.propertyId)}" tabindex="0" role="button" aria-expanded="false">
-        <td class="name">${copyBtn(s.propertyId)}${siteLink(s.displayName, gaUrl(s.propertyId))}${dqBadge(s.dataQuality)}</td>
+        <td class="name">${copyBtn(s.propertyId)}${siteLink(s.displayName, gaUrl(s.propertyId))}${dqBadge(s.dataQuality)}${integrityBadge(s.integrity)}</td>
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>

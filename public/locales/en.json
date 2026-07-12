@@ -155,5 +155,7 @@
   "quality.sampled": "Sampled",
   "quality.thresholded": "Thresholded",
   "quality.otherRow": "Long tail folded into (other)",
-  "quality.badgeLabel": "Data quality"
+  "quality.badgeLabel": "Data quality",
+  "integrity.mismatch": "Cross-check failed ({fields}): the daily series and the period totals disagree, so these numbers may be wrong. Causes include a SiteDeck bug, GA estimation at high volume, or GA data thresholding.",
+  "integrity.badgeLabel": "Integrity check failed"
 }

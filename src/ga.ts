@@ -264,7 +264,11 @@ function ymdToIso(ymd: string): string {
  *  GA4's `keepEmptyRows: true` does NOT guarantee a row per requested date — real
  *  responses can be sparse (a gap mid-range, a missing trailing day, etc., confirmed
  *  against the live API) — so the date set comes from the caller, never from the
- *  reports; any date GA omits is zero-filled. Pure — split for unit testing. */
+ *  reports; any date GA omits is zero-filled. Pure — split for unit testing.
+ *
+ *  Note: this maps over `expected`, so any base/ai row whose date is NOT in `expected`
+ *  is silently dropped rather than appended — see countUnexpectedDates below, which
+ *  turns that silent drop into a signal instead of a blind spot. */
 export function mapDailyMetricsRows(
   base: Row[] | null | undefined,
   ai: Row[] | null | undefined,
@@ -293,17 +297,62 @@ export function mapDailyMetricsRows(
   });
 }
 
+/** ISO (YYYY-MM-DD) dates of base-report rows whose date is NOT in `expected`, in the
+ *  report's own row order. Internal — countUnexpectedDates (below) exposes just the
+ *  count, which is what the release gate checks; fetchDailyMetrics additionally keeps
+ *  the first entry as a concrete sample for a human-readable FAIL detail. */
+function unexpectedDateList(base: Row[] | null | undefined, expected: string[]): string[] {
+  const exp = new Set(expected);
+  const out: string[] = [];
+  for (const r of base ?? []) {
+    const day = r.dimensionValues?.[0]?.value;
+    if (!day) continue;
+    const iso = ymdToIso(day);
+    if (!exp.has(iso)) out.push(iso);
+  }
+  return out;
+}
+
+/**
+ * How many of GA's returned base-report dates are NOT in `expected` — a free,
+ * non-circular signal for a shifted/misaligned window that the additive-sum invariant
+ * in `checkIntegrity` cannot see.
+ *
+ * `mapDailyMetricsRows` (above) builds its output by mapping over `expected` and
+ * looking up GA's rows by date, so any GA row whose date isn't in `expected` is
+ * silently dropped — today, that drop carries no signal. If our locally-computed
+ * `expected` window has drifted relative to what GA considers valid dates for this
+ * property (e.g. a timezone miscalculation), GA returns rows for dates outside
+ * `expected`, and this count goes non-zero. Critically, this does NOT depend on any
+ * metric being non-zero — unlike the additive-sum invariant, it is exactly as
+ * sensitive on a zero-traffic property (GA still echoes back a `date` dimension value
+ * even when every metric on that row is 0), which is precisely the case where a
+ * one-day window shift is otherwise silent (the day entering the window and the day
+ * leaving it both contribute 0 either way).
+ *
+ * On a correctly-aligned window this is always 0 — GA does not invent rows for dates
+ * outside the requested range. Pure — split out so it's unit-testable without the GA
+ * client.
+ */
+export function countUnexpectedDates(base: Row[] | null | undefined, expected: string[]): number {
+  return unexpectedDateList(base, expected).length;
+}
+
 /** Daily {activeUsers, sessions, keyEvents, aiSessions} over the `days` days ending
  *  yesterday in the property's OWN reporting time zone, zero-filled. `range` must be
  *  the relative range for the same `days` count (see gaHistoryRange) — GA resolves it
  *  server-side in that same property time zone, which the response echoes back in
- *  `metadata.timeZone`, so no extra Admin API call is needed to learn it. */
+ *  `metadata.timeZone`, so no extra Admin API call is needed to learn it.
+ *
+ *  Also returns `unexpectedDates`/`sampleUnexpectedDate` (see countUnexpectedDates
+ *  above) — the release gate (scripts/verify-accuracy.mts) FAILs when unexpectedDates
+ *  > 0; normal in-app usage (src/server.ts) reads only `.rows`, unchanged from before. */
 export async function fetchDailyMetrics(
   auth: OAuth2Client,
   propertyId: string,
   range: DateRange,
   days: number,
-): Promise<DailyMetricsRow[]> {
+): Promise<{ rows: DailyMetricsRow[]; unexpectedDates: number; sampleUnexpectedDate: string | null }> {
   const client = data(auth);
   const [[base], [aiRep]] = await Promise.all([
     client.runReport({
@@ -323,5 +372,11 @@ export async function fetchDailyMetrics(
     }),
   ]);
   const timeZone = base.metadata?.timeZone || 'UTC';
-  return mapDailyMetricsRows(base.rows, aiRep.rows, expectedDaysInZone(timeZone, days));
+  const expected = expectedDaysInZone(timeZone, days);
+  const unexpected = unexpectedDateList(base.rows, expected);
+  return {
+    rows: mapDailyMetricsRows(base.rows, aiRep.rows, expected),
+    unexpectedDates: unexpected.length,
+    sampleUnexpectedDate: unexpected[0] ?? null,
+  };
 }

@@ -155,5 +155,7 @@
   "quality.sampled": "Muestreado",
   "quality.thresholded": "Con umbral",
   "quality.otherRow": "Cola larga en (otros)",
-  "quality.badgeLabel": "Calidad de datos"
+  "quality.badgeLabel": "Calidad de datos",
+  "integrity.mismatch": "Verificación cruzada fallida ({fields}): la serie diaria y los totales del periodo no coinciden, así que estas cifras podrían ser incorrectas. Las causas incluyen un error de SiteDeck, la estimación de GA con mucho volumen o el umbral de datos de GA.",
+  "integrity.badgeLabel": "Fallo de verificación de integridad"
 }

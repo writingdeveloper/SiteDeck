@@ -26,11 +26,13 @@ import {
   fetchTopValue,
   listProperties,
   listSiteUrls,
+  type DailyMetricsRow,
 } from './ga';
 import { loadGaHistory, saveGaHistory, upsertDailyMetrics, historyDigest, weeklySeries, wow } from './ga-store';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
 import { getOnPageReport } from './onpage';
 import { mapPool } from './concurrency';
+import { checkIntegrity } from './integrity';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import {
@@ -124,16 +126,24 @@ async function buildSummary(period: Period): Promise<{
     await mapPool(props, GA_CONCURRENCY, async (p) => {
       try {
         const gscSiteUrl = gscMatch.get(p.propertyId);
-        const [cur, prev, topPage, topSource, daily, aiCur, aiPrev, search] = await Promise.all([
+        const [cur, prev, topPage, topSource, { rows: daily }, aiCur, aiPrev, search] = await Promise.all([
           fetchRange(auth, p.propertyId, ranges.current),
           fetchRange(auth, p.propertyId, ranges.previous),
           fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
           fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
+          // .unexpectedDates/.sampleUnexpectedDate (see src/ga.ts's countUnexpectedDates) are
+          // deliberately unused here — that signal is release-gate-only for now (verify-accuracy.mts).
           fetchDailyMetrics(auth, p.propertyId, historyRange, GA_HISTORY_FETCH_DAYS),
           fetchAiSessions(auth, p.propertyId, ranges.current),
           fetchAiSessions(auth, p.propertyId, ranges.previous),
           gscSiteUrl ? fetchSearchMetrics(auth, gscSiteUrl, gscRange).catch(() => null) : Promise.resolve(null),
         ]);
+        const integrity = checkIntegrity(
+          daily,
+          period,
+          { activeUsers: cur.activeUsers, sessions: cur.sessions, keyEvents: cur.keyEvents, aiSessions: aiCur },
+          { activeUsers: prev.activeUsers, sessions: prev.sessions, keyEvents: prev.keyEvents, aiSessions: aiPrev },
+        );
         const summary: SiteSummary = {
           propertyId: p.propertyId,
           displayName: p.displayName,
@@ -150,6 +160,7 @@ async function buildSummary(period: Period): Promise<{
             ...cur.dataQuality,
             otherRow: cur.dataQuality.otherRow || topPage.otherRow || topSource.otherRow,
           },
+          integrity,
         };
         return { propertyId: p.propertyId, series: daily, summary };
       } catch (err) {
@@ -161,7 +172,7 @@ async function buildSummary(period: Period): Promise<{
         return null;
       }
     })
-  ).filter((r): r is { propertyId: string; series: Awaited<ReturnType<typeof fetchDailyMetrics>>; summary: SiteSummary } => r !== null);
+  ).filter((r): r is { propertyId: string; series: DailyMetricsRow[]; summary: SiteSummary } => r !== null);
 
   // Upsert sequentially (never mutate the shared store concurrently), persist once.
   for (const r of results) history = upsertDailyMetrics(history, r.propertyId, r.series, GA_HISTORY_RETENTION_DAYS);
