@@ -37,6 +37,13 @@ describe('writeJsonAtomic', () => {
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ ok: true });
   });
 
+  it('나중 쓰기가 이전 쓰기를 대체한다 (순차·비경합)', async () => {
+    const file = path.join(await tmpDir(), 'store.json');
+    await writeJsonAtomic(file, { v: 1 });
+    await writeJsonAtomic(file, { v: 2 });
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ v: 2 });
+  });
+
   it.skipIf(process.platform === 'win32')('mode를 적용한다 (POSIX 전용 — Windows는 NTFS ACL이 우선)', async () => {
     const file = path.join(await tmpDir(), 'secret.json');
     await writeJsonAtomic(file, { k: 'v' }, { mode: 0o600 });

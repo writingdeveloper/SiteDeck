@@ -8,8 +8,10 @@ import path from 'node:path';
 const inFlight = new Map<string, Promise<void>>();
 
 /**
- * fsync a directory so a rename INTO it is durable — without it a crash can persist the
- * rename without the data, or lose the rename entirely.
+ * fsync a directory so a rename INTO it is durable. The written file is already fsynced
+ * before the rename (see writeOnce), so data loss is not a residual risk; the only durability
+ * gap this closes is losing the rename itself (a lost update, not corruption, since the prior
+ * file remains intact and valid).
  *
  * Windows cannot open a directory as a file handle, so this throws there and we ignore it:
  * NTFS journals rename metadata, so the durability gap this closes is a POSIX concern.
