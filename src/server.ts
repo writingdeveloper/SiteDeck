@@ -31,6 +31,7 @@ import { loadGaHistory, saveGaHistory, upsertDailyMetrics, historyDigest, weekly
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
 import { getOnPageReport } from './onpage';
 import { mapPool } from './concurrency';
+import { checkIntegrity } from './integrity';
 import { metricDelta, type SiteSummary } from './summary';
 import { getInsightsState, initInsights, measureNow, startInsightsScheduler } from './insights';
 import {
@@ -134,6 +135,12 @@ async function buildSummary(period: Period): Promise<{
           fetchAiSessions(auth, p.propertyId, ranges.previous),
           gscSiteUrl ? fetchSearchMetrics(auth, gscSiteUrl, gscRange).catch(() => null) : Promise.resolve(null),
         ]);
+        const integrity = checkIntegrity(
+          daily,
+          period,
+          { activeUsers: cur.activeUsers, sessions: cur.sessions, keyEvents: cur.keyEvents, aiSessions: aiCur },
+          { activeUsers: prev.activeUsers, sessions: prev.sessions, keyEvents: prev.keyEvents, aiSessions: aiPrev },
+        );
         const summary: SiteSummary = {
           propertyId: p.propertyId,
           displayName: p.displayName,
@@ -150,6 +157,7 @@ async function buildSummary(period: Period): Promise<{
             ...cur.dataQuality,
             otherRow: cur.dataQuality.otherRow || topPage.otherRow || topSource.otherRow,
           },
+          integrity,
         };
         return { propertyId: p.propertyId, series: daily, summary };
       } catch (err) {

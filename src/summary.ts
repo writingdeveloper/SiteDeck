@@ -1,5 +1,6 @@
 import type { HistoryDigest } from './ga-store';
 import type { DataQuality } from './ga';
+import type { IntegrityReport } from './integrity';
 
 /** A metric's current vs previous value plus its percentage change. */
 export interface MetricDelta {
@@ -34,6 +35,8 @@ export interface SiteSummary {
   history: HistoryDigest | null;
   /** GA가 이 사이트 수치를 샘플링/임계 처리했는지(없으면 null). */
   dataQuality: DataQuality | null;
+  /** 일별 시리즈 ↔ 기간 총계 교차검증 결과. 불일치면 이 사이트 수치를 신뢰할 수 없다. */
+  integrity: IntegrityReport | null;
 }
 
 /**
