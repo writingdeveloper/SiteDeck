@@ -1,4 +1,4 @@
-import { readFile, readdir, rename, unlink } from 'node:fs/promises';
+import { readFile, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { writeJsonAtomic } from './atomic';
@@ -99,13 +99,26 @@ async function pruneBackups(filePath: string): Promise<void> {
 }
 
 /**
+ * A `.tmp` younger than this is presumed to be a LIVE in-flight write, possibly from another
+ * process — see sweepStaleTemps's doc comment for why age is a sufficient proxy.
+ */
+const MIN_TEMP_AGE_MS = 60_000;
+
+/**
  * Delete stale `<basename>.<pid>.<hex>.tmp` siblings left behind by a process that died
  * mid-write (writeJsonAtomic's temp name — see atomic.ts). This is ordinary here, not
  * exotic: Electron kills the server on quit, and /api/summary writes ga-history.json on
  * every call, so quitting mid-refresh happens regularly and nothing else sweeps the litter.
  *
- * Only ever removes temps that do NOT belong to the current process — never race our own
- * in-flight write.
+ * Excludes the current process's own temps (never race our own in-flight write) AND, since
+ * pid exclusion alone only protects THIS process, anything younger than MIN_TEMP_AGE_MS: a
+ * genuinely live second process's in-flight temp could otherwise be swept mid-write (its
+ * later `rename` then loses its target, which every caller already treats as a non-fatal lost
+ * update — but deleting another process's live file is wrong regardless of how the failure is
+ * absorbed). writeJsonAtomic's temp exists only for the few milliseconds between creation and
+ * rename, so anything still present after MIN_TEMP_AGE_MS is necessarily abandoned — age alone
+ * is a sufficient "not live" proxy without needing actual cross-process coordination. If we
+ * can't even stat a candidate, don't guess: skip it rather than delete what we can't inspect.
  */
 async function sweepStaleTemps(filePath: string): Promise<void> {
   const dir = path.dirname(filePath);
@@ -119,7 +132,15 @@ async function sweepStaleTemps(filePath: string): Promise<void> {
   }
   for (const f of found) {
     if (f.includes(mine)) continue; // could be our own in-flight write — never touch it
-    await unlink(path.join(dir, f)).catch(() => {});
+    const full = path.join(dir, f);
+    let mtimeMs: number;
+    try {
+      mtimeMs = (await stat(full)).mtimeMs;
+    } catch {
+      continue; // can't inspect it — don't delete what we can't verify is stale
+    }
+    if (Date.now() - mtimeMs < MIN_TEMP_AGE_MS) continue; // too young — could be a live write
+    await unlink(full).catch(() => {});
   }
 }
 

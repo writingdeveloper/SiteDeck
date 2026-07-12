@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { writeFile, readdir, mkdtemp, mkdir, stat, rm } from 'node:fs/promises';
+import { writeFile, readFile, readdir, mkdtemp, mkdir, stat, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { loadJsonStore, MAX_BACKUPS } from './store-io';
+import { loadJsonStore, saveJsonStore, MAX_BACKUPS } from './store-io';
 
 const made: string[] = [];
 async function tmpDir(): Promise<string> {
@@ -89,5 +89,30 @@ describe('loadJsonStore', () => {
       await loadJsonStore(file, empty, isValid, 1);
     }
     expect((await baks(dir)).length).toBeLessThanOrEqual(MAX_BACKUPS);
+  });
+});
+
+describe('saveJsonStore (sweepStaleTemps age heuristic)', () => {
+  // Own-pid exclusion alone isn't enough to prove a foreign .tmp is abandoned — a genuinely
+  // live SECOND process's in-flight write has a different pid too. These pin the age proxy
+  // that covers that gap (see sweepStaleTemps's doc comment in store-io.ts).
+  it('막 생성된 다른 프로세스의 .tmp는 살아있는 쓰기로 보고 지우지 않는다', async () => {
+    const dir = await tmpDir();
+    const file = path.join(dir, 'x.json');
+    const foreignTmp = path.join(dir, 'x.json.otherpid.deadbeef.tmp');
+    await writeFile(foreignTmp, '{}'); // mtime = now → looks live
+    await saveJsonStore(file, { version: 1, items: {} });
+    expect(await readFile(foreignTmp, 'utf8')).toBe('{}'); // untouched
+  });
+
+  it('60초 넘게 방치된 다른 프로세스의 .tmp는 정리한다', async () => {
+    const dir = await tmpDir();
+    const file = path.join(dir, 'x.json');
+    const foreignTmp = path.join(dir, 'x.json.otherpid.deadbeef.tmp');
+    await writeFile(foreignTmp, '{}');
+    const old = new Date(Date.now() - 61_000);
+    await utimes(foreignTmp, old, old); // backdate past the liveness window
+    await saveJsonStore(file, { version: 1, items: {} });
+    await expect(readFile(foreignTmp, 'utf8')).rejects.toThrow();
   });
 });
