@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mapBreakdownRows, mapDailyMetricsRows, pickTopValue } from './ga';
-import { mapDataQuality } from './ga';
+import { mapDataQuality, mapTopValue } from './ga';
 
 describe('mapBreakdownRows', () => {
   it('dimension + metric 값을 {name, value}로 매핑', () => {
@@ -78,5 +78,28 @@ describe('mapDataQuality', () => {
   it('없거나 빈 metadata는 전부 false', () => {
     expect(mapDataQuality(undefined)).toEqual({ sampled: false, thresholded: false, otherRow: false });
     expect(mapDataQuality({ samplingMetadatas: [] })).toEqual({ sampled: false, thresholded: false, otherRow: false });
+  });
+  it('otherRow은 dataLossFromOtherRow 단독 필드에서도 유래(다른 플래그와 독립) — 이 값이 진짜인지가 FIX 1의 핵심', () => {
+    expect(mapDataQuality({ dataLossFromOtherRow: true }).otherRow).toBe(true);
+    expect(mapDataQuality({}).otherRow).toBe(false);
+  });
+});
+
+describe('mapTopValue — fetchTopValue의 {value, otherRow} 합성(순수부, GA 클라이언트 없이 테스트)', () => {
+  it('rows에서 상위 값을, metadata에서 otherRow를 뽑아 하나로 합성', () => {
+    expect(
+      mapTopValue(
+        [{ dimensionValues: [{ value: '(other)' }] }, { dimensionValues: [{ value: '/home' }] }],
+        { dataLossFromOtherRow: true },
+      ),
+    ).toEqual({ value: '/home', otherRow: true });
+  });
+  it('픽된 값이 (other)가 아니어도, 리포트 metadata가 롱테일 손실을 알리면 otherRow는 true — ' +
+    '이전에는 fetchTopValue가 string만 반환해 이 신호가 통째로 버려졌다', () => {
+    expect(mapTopValue([{ dimensionValues: [{ value: '/home' }] }], { dataLossFromOtherRow: true }))
+      .toEqual({ value: '/home', otherRow: true });
+  });
+  it('metadata 없으면 otherRow는 false', () => {
+    expect(mapTopValue([{ dimensionValues: [{ value: '(other)' }] }], undefined)).toEqual({ value: null, otherRow: false });
   });
 });

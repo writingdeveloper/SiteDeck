@@ -142,11 +142,14 @@ async function buildSummary(period: Period): Promise<{
           keyEvents: metricDelta(cur.keyEvents, prev.keyEvents),
           aiSessions: metricDelta(aiCur, aiPrev),
           trend: daily.slice(-period).map((r) => r.metrics.activeUsers),
-          topPage,
-          topSource,
+          topPage: topPage.value,
+          topSource: topSource.value,
           search,
           history: null,
-          dataQuality: cur.dataQuality,
+          dataQuality: {
+            ...cur.dataQuality,
+            otherRow: cur.dataQuality.otherRow || topPage.otherRow || topSource.otherRow,
+          },
         };
         return { propertyId: p.propertyId, series: daily, summary };
       } catch (err) {

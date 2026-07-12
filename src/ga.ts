@@ -1,7 +1,7 @@
 import { AnalyticsAdminServiceClient } from '@google-analytics/admin';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import type { OAuth2Client } from 'google-auth-library';
-import { enumerateDays, type DateRange } from './periods';
+import type { DateRange } from './periods';
 import type { DayMetrics } from './ga-store';
 
 export interface PropertyRef {
@@ -126,7 +126,11 @@ export async function fetchRange(
   };
 }
 
-const OMIT_TOP_VALUES = new Set(['(not set)', '(other)']);
+// GA's aggregate row for values folded past the query's `limit`. Shared by pickTopValue
+// (top-value picker) and mapBreakdownRows (breakdown filter) so both agree on exactly
+// what "(other)" means.
+const OTHER_ROW = '(other)';
+const OMIT_TOP_VALUES = new Set(['(not set)', OTHER_ROW]);
 /** First dimension value that isn't GA's (not set)/(other) aggregate. Pure — unit-tested. */
 export function pickTopValue(
   rows: { dimensionValues?: ({ value?: string | null } | undefined)[] | null }[] | null | undefined,
@@ -138,14 +142,31 @@ export function pickTopValue(
   return null;
 }
 
-/** The single top dimension value (by `metric`, descending) for a property over a range. */
+export interface TopValue {
+  value: string | null;
+  /** GA folded a long tail into an `(other)` row in this (dimensioned) report. */
+  otherRow: boolean;
+}
+
+/** Shape a runReport response (rows + metadata) into a TopValue. Pure — split out so the
+ *  {value, otherRow} composition is unit-testable without the GA client. */
+export function mapTopValue(
+  rows: { dimensionValues?: ({ value?: string | null } | undefined)[] | null }[] | null | undefined,
+  metadata: unknown,
+): TopValue {
+  return { value: pickTopValue(rows), otherRow: mapDataQuality(metadata).otherRow };
+}
+
+/** The single top dimension value (by `metric`, descending) for a property over a range,
+ *  plus whether GA folded a long tail into `(other)` in this (dimensioned) report — this
+ *  is the only place that flag can come from, since fetchRange's report has no dimensions. */
 export async function fetchTopValue(
   auth: OAuth2Client,
   propertyId: string,
   range: DateRange,
   dimension: string,
   metric: string,
-): Promise<string | null> {
+): Promise<TopValue> {
   const [report] = await data(auth).runReport({
     property: `properties/${propertyId}`,
     dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
@@ -154,28 +175,7 @@ export async function fetchTopValue(
     orderBys: [{ metric: { metricName: metric }, desc: true }, { dimension: { dimensionName: dimension } }],
     limit: 5,
   });
-  return pickTopValue(report.rows);
-}
-
-/** Daily values of `metric` over a range, zero-filled and in chronological order. */
-export async function fetchDailySeries(
-  auth: OAuth2Client,
-  propertyId: string,
-  range: DateRange,
-  metric = 'activeUsers',
-): Promise<number[]> {
-  const [report] = await data(auth).runReport({
-    property: `properties/${propertyId}`,
-    dateRanges: [{ startDate: range.startDate, endDate: range.endDate }],
-    dimensions: [{ name: 'date' }],
-    metrics: [{ name: metric }],
-  });
-  const byDay = new Map<string, number>();
-  for (const row of report.rows ?? []) {
-    const day = row.dimensionValues?.[0]?.value;
-    if (day) byDay.set(day, Number(row.metricValues?.[0]?.value ?? 0));
-  }
-  return enumerateDays(range).map((day) => byDay.get(day) ?? 0);
+  return mapTopValue(report.rows, report.metadata);
 }
 
 export interface SiteUrl {
@@ -217,7 +217,7 @@ export function mapBreakdownRows(
     | undefined,
 ): BreakdownRow[] {
   return (rows ?? [])
-    .filter((r) => r.dimensionValues?.[0]?.value !== '(other)')
+    .filter((r) => r.dimensionValues?.[0]?.value !== OTHER_ROW)
     .map((r) => ({
       name: r.dimensionValues?.[0]?.value ?? '(not set)',
       value: Number(r.metricValues?.[0]?.value ?? 0),
