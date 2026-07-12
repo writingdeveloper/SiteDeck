@@ -109,10 +109,11 @@
   "oauth.failed": "认证失败：{detail}",
   "oauth.tokenFailed": "令牌交换失败：{detail}",
   "oauth.noCode": "无授权码",
-  "tip.aiTraffic": "AI 助手引荐 — ChatGPT、Perplexity、Gemini、Copilot 等",
-  "tip.searchImpressions": "Search Console 曝光次数（Google 搜索）",
-  "tip.searchClicks": "Search Console 点击次数（Google 搜索）",
-  "tip.searchPosition": "Search Console 平均排名 — 越低越好",
+  "tip.activeUsers": "GA4 活跃用户。在某些报告中可能与 totalUsers 不同。",
+  "tip.aiTraffic": "AI 回答引擎引流的会话（ChatGPT、Perplexity、Gemini 等）。为下限值，不含被移除来源的访问。",
+  "tip.searchImpressions": "Search Console 展示次数。最近约 3 天为临时数据。",
+  "tip.searchClicks": "Search Console 点击次数。最近约 3 天为临时数据。",
+  "tip.searchPosition": "Search Console 平均排名。最近约 3 天为临时数据。",
   "tip.title": "有非空的 <title> 标签",
   "tip.description": "有 meta description",
   "tip.canonical": "有 canonical URL",
@@ -150,5 +151,9 @@
   "copy.portfolio": "组合概览：活跃 {active} · 会话 {sessions} · AI {ai}（{aiPct}%）· 下降 {declining} 个",
   "copy.strategyHeading": "## 改进策略（基于规则的自动诊断）",
   "detail.history": "历史（每周）",
-  "copy.wowHeading": "## 环比上周 (WoW)"
+  "copy.wowHeading": "## 环比上周 (WoW)",
+  "quality.sampled": "抽样",
+  "quality.thresholded": "阈值处理",
+  "quality.otherRow": "部分并入(其他)",
+  "quality.badgeLabel": "数据质量"
 }

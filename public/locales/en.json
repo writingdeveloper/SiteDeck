@@ -109,10 +109,11 @@
   "oauth.failed": "Authentication failed: {detail}",
   "oauth.tokenFailed": "Token exchange failed: {detail}",
   "oauth.noCode": "no code",
-  "tip.aiTraffic": "AI assistant referrals — ChatGPT, Perplexity, Gemini, Copilot…",
-  "tip.searchImpressions": "Search Console impressions (Google Search)",
-  "tip.searchClicks": "Search Console clicks (Google Search)",
-  "tip.searchPosition": "Search Console average position — lower is better",
+  "tip.activeUsers": "GA4 active users. May differ from GA's totalUsers in some reports.",
+  "tip.aiTraffic": "AI answer-engine referred sessions (ChatGPT, Perplexity, Gemini, …). A floor — referrer-stripped visits are not counted.",
+  "tip.searchImpressions": "Search Console impressions. Recent ~3 days are provisional.",
+  "tip.searchClicks": "Search Console clicks. Recent ~3 days are provisional.",
+  "tip.searchPosition": "Average Search Console position. Recent ~3 days are provisional.",
   "tip.title": "Has a non-empty <title>",
   "tip.description": "Has a meta description",
   "tip.canonical": "Has a canonical URL",
@@ -150,5 +151,9 @@
   "copy.portfolio": "Portfolio: {active} active · {sessions} sessions · {ai} AI ({aiPct}%) · {declining} declining",
   "copy.strategyHeading": "## Improvement strategy (rule-based auto diagnosis)",
   "detail.history": "History (weekly)",
-  "copy.wowHeading": "## Week-over-week (WoW)"
+  "copy.wowHeading": "## Week-over-week (WoW)",
+  "quality.sampled": "Sampled",
+  "quality.thresholded": "Thresholded",
+  "quality.otherRow": "Long tail folded into (other)",
+  "quality.badgeLabel": "Data quality"
 }

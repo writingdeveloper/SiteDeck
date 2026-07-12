@@ -109,10 +109,11 @@
   "oauth.failed": "認証に失敗しました: {detail}",
   "oauth.tokenFailed": "トークン交換に失敗しました: {detail}",
   "oauth.noCode": "コードなし",
-  "tip.aiTraffic": "AI アシスタントからの流入 — ChatGPT、Perplexity、Gemini、Copilot など",
-  "tip.searchImpressions": "Search Console の表示回数（Google 検索）",
-  "tip.searchClicks": "Search Console のクリック数（Google 検索）",
-  "tip.searchPosition": "Search Console の平均掲載順位 — 低いほど良い",
+  "tip.activeUsers": "GA4 のアクティブ ユーザー。一部レポートの totalUsers とは異なる場合があります。",
+  "tip.aiTraffic": "AI 回答エンジン経由のセッション（ChatGPT・Perplexity・Gemini など）。リファラーが除去された訪問は含まない下限値です。",
+  "tip.searchImpressions": "Search Console の表示回数。直近約 3 日は暫定値です。",
+  "tip.searchClicks": "Search Console のクリック数。直近約 3 日は暫定値です。",
+  "tip.searchPosition": "Search Console の平均掲載順位。直近約 3 日は暫定値です。",
   "tip.title": "空でない <title> タグがある",
   "tip.description": "meta description がある",
   "tip.canonical": "canonical URL がある",
@@ -150,5 +151,9 @@
   "copy.portfolio": "ポートフォリオ: アクティブ {active} · セッション {sessions} · AI {ai}（{aiPct}%）· 減少 {declining}件",
   "copy.strategyHeading": "## 改善戦略（ルールベース自動診断）",
   "detail.history": "履歴（週次）",
-  "copy.wowHeading": "## 前週比 (WoW)"
+  "copy.wowHeading": "## 前週比 (WoW)",
+  "quality.sampled": "サンプリング",
+  "quality.thresholded": "しきい値処理",
+  "quality.otherRow": "一部が(その他)に集約",
+  "quality.badgeLabel": "データ品質"
 }

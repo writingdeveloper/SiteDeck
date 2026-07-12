@@ -78,6 +78,18 @@ function fmtPos(search) {
   });
 }
 
+// Small warning badge when GA sampled/thresholded/(other)-folded this site's numbers.
+function dqBadge(dq) {
+  if (!dq) return "";
+  const flags = [];
+  if (dq.sampled) flags.push(t("quality.sampled"));
+  if (dq.thresholded) flags.push(t("quality.thresholded"));
+  if (dq.otherRow) flags.push(t("quality.otherRow"));
+  if (flags.length === 0) return "";
+  const text = flags.join(" · ");
+  return ` <span class="dq-badge" title="${escapeHtml(text)}" aria-label="${escapeHtml(t("quality.badgeLabel") + ": " + text)}">⚠</span>`;
+}
+
 function sparkline(values, label = "", w = 84, h = 24) {
   if (!values || values.length === 0) return "";
   const max = Math.max(...values, 1);
@@ -340,7 +352,7 @@ function render() {
     .map(
       (s) => `
       <tr class="site-row" data-prop="${escapeHtml(s.propertyId)}" tabindex="0" role="button" aria-expanded="false">
-        <td class="name">${copyBtn(s.propertyId)}${siteLink(s.displayName, gaUrl(s.propertyId))}</td>
+        <td class="name">${copyBtn(s.propertyId)}${siteLink(s.displayName, gaUrl(s.propertyId))}${dqBadge(s.dataQuality)}</td>
         <td class="num">${fmtNum(s.activeUsers?.current)} ${fmtDelta(s.activeUsers?.deltaPct)}</td>
         <td class="num">${fmtNum(s.sessions?.current)} ${fmtDelta(s.sessions?.deltaPct)}</td>
         <td class="num">${fmtNum(s.keyEvents?.current)} ${fmtDelta(s.keyEvents?.deltaPct)}</td>
