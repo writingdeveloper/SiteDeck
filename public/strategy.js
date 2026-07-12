@@ -57,15 +57,17 @@ export function analyzeSite(summary, detail) {
     }
   }
 
-  // Medium: one channel dominates traffic (needs the breakdown).
-  if (detail && detail.channels && detail.channels.length > 0) {
-    const total = detail.channels.reduce((a, c) => a + c.value, 0);
+  // Medium: one channel dominates traffic. Denominator = true session total
+  // (summary.sessions.current), NOT the truncated top-N breakdown sum, so a long
+  // tail beyond the top 5 doesn't inflate the share into a false positive.
+  if (detail && detail.channels && detail.channels.length > 0 && sessions && sessions.current > 0) {
     const top = detail.channels[0];
-    if (total > 0 && top && top.value / total > STRATEGY.CHANNEL_CONCENTRATION) {
+    const share = top ? top.value / sessions.current : 0;
+    if (share > STRATEGY.CHANNEL_CONCENTRATION) {
       out.push({
         id: "channel-concentrated",
         severity: "medium",
-        params: { name: top.name, pct: round1((top.value / total) * 100) },
+        params: { name: top.name, pct: round1(share * 100) },
       });
     }
   }
