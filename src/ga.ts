@@ -1,7 +1,7 @@
 import { AnalyticsAdminServiceClient } from '@google-analytics/admin';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import type { OAuth2Client } from 'google-auth-library';
-import type { DateRange } from './periods';
+import { expectedDaysInZone, type DateRange } from './periods';
 import type { DayMetrics } from './ga-store';
 
 export interface PropertyRef {
@@ -254,14 +254,26 @@ export interface DailyMetricsRow {
 
 type Row = { dimensionValues?: ({ value?: string | null } | undefined)[] | null; metricValues?: ({ value?: string | null } | undefined)[] | null };
 
+/** GA4 `date` dimension value (YYYYMMDD) → YYYY-MM-DD. */
+function ymdToIso(ymd: string): string {
+  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+}
+
 /** Merge a base report (date + [activeUsers,sessions,keyEvents]) and an AI report
- *  (date + [sessions]) by date. keepEmptyRows guarantees 0-traffic days are present,
- *  so the date set comes from the reports themselves. Pure — split for unit testing. */
-export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | null | undefined): DailyMetricsRow[] {
+ *  (date + [sessions]) over an explicit `expected` day list (YYYY-MM-DD, oldest→newest).
+ *  GA4's `keepEmptyRows: true` does NOT guarantee a row per requested date — real
+ *  responses can be sparse (a gap mid-range, a missing trailing day, etc., confirmed
+ *  against the live API) — so the date set comes from the caller, never from the
+ *  reports; any date GA omits is zero-filled. Pure — split for unit testing. */
+export function mapDailyMetricsRows(
+  base: Row[] | null | undefined,
+  ai: Row[] | null | undefined,
+  expected: string[],
+): DailyMetricsRow[] {
   const b = new Map<string, { a: number; s: number; k: number }>();
   for (const r of base ?? []) {
     const day = r.dimensionValues?.[0]?.value;
-    if (day) b.set(day, {
+    if (day) b.set(ymdToIso(day), {
       a: Number(r.metricValues?.[0]?.value ?? 0),
       s: Number(r.metricValues?.[1]?.value ?? 0),
       k: Number(r.metricValues?.[2]?.value ?? 0),
@@ -270,20 +282,28 @@ export function mapDailyMetricsRows(base: Row[] | null | undefined, ai: Row[] | 
   const aiMap = new Map<string, number>();
   for (const r of ai ?? []) {
     const day = r.dimensionValues?.[0]?.value;
-    if (day) aiMap.set(day, Number(r.metricValues?.[0]?.value ?? 0));
+    if (day) aiMap.set(ymdToIso(day), Number(r.metricValues?.[0]?.value ?? 0));
   }
-  const days = [...new Set([...b.keys(), ...aiMap.keys()])].sort();
-  return days.map((ymd) => {
-    const bv = b.get(ymd) ?? { a: 0, s: 0, k: 0 };
+  return expected.map((date) => {
+    const bv = b.get(date) ?? { a: 0, s: 0, k: 0 };
     return {
-      date: `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`,
-      metrics: { activeUsers: bv.a, sessions: bv.s, keyEvents: bv.k, aiSessions: aiMap.get(ymd) ?? 0 },
+      date,
+      metrics: { activeUsers: bv.a, sessions: bv.s, keyEvents: bv.k, aiSessions: aiMap.get(date) ?? 0 },
     };
   });
 }
 
-/** Daily {activeUsers, sessions, keyEvents, aiSessions} over a range, zero-filled. */
-export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, range: DateRange): Promise<DailyMetricsRow[]> {
+/** Daily {activeUsers, sessions, keyEvents, aiSessions} over the `days` days ending
+ *  yesterday in the property's OWN reporting time zone, zero-filled. `range` must be
+ *  the relative range for the same `days` count (see gaHistoryRange) — GA resolves it
+ *  server-side in that same property time zone, which the response echoes back in
+ *  `metadata.timeZone`, so no extra Admin API call is needed to learn it. */
+export async function fetchDailyMetrics(
+  auth: OAuth2Client,
+  propertyId: string,
+  range: DateRange,
+  days: number,
+): Promise<DailyMetricsRow[]> {
   const client = data(auth);
   const [[base], [aiRep]] = await Promise.all([
     client.runReport({
@@ -302,5 +322,6 @@ export async function fetchDailyMetrics(auth: OAuth2Client, propertyId: string, 
       keepEmptyRows: true,
     }),
   ]);
-  return mapDailyMetricsRows(base.rows, aiRep.rows);
+  const timeZone = base.metadata?.timeZone || 'UTC';
+  return mapDailyMetricsRows(base.rows, aiRep.rows, expectedDaysInZone(timeZone, days));
 }

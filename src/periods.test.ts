@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { comparisonRanges, enumerateDays, gaRanges, gaHistoryRange } from './periods';
+import { comparisonRanges, enumerateDays, gaRanges, gaHistoryRange, todayInZone, expectedDaysInZone } from './periods';
 import { PERIODS } from './config';
 
 // Fixed "now" so tests are deterministic. GA only counts full days, so the
@@ -84,5 +84,56 @@ describe('gaRanges (GA4 상대 날짜)', () => {
 describe('gaHistoryRange', () => {
   it('최근 N일, 어제까지', () => {
     expect(gaHistoryRange(90)).toEqual({ startDate: '90daysAgo', endDate: 'yesterday' });
+  });
+});
+
+describe('todayInZone', () => {
+  // 2026-07-11 19:06 PDT  ==  2026-07-12 11:06 KST  — the two zones are on different calendar days.
+  const asOf = new Date('2026-07-12T02:06:00Z');
+
+  it('UTC 순간을 속성 타임존의 오늘 날짜(YYYY-MM-DD)로 변환한다 (LA는 아직 7/11)', () => {
+    expect(todayInZone('America/Los_Angeles', asOf)).toBe('2026-07-11');
+  });
+
+  it('같은 순간이라도 서울은 이미 7/12로 넘어갔다', () => {
+    expect(todayInZone('Asia/Seoul', asOf)).toBe('2026-07-12');
+  });
+});
+
+describe('expectedDaysInZone', () => {
+  // GA4's keepEmptyRows does NOT emit a row for every date in "NdaysAgo..yesterday" —
+  // real responses can be sparse. This is the date list callers zero-fill against instead,
+  // resolved in the property's own reporting time zone (not UTC, not the server's local zone).
+  // 2026-07-11 19:06 PDT  ==  2026-07-12 11:06 KST  — the two zones are on different calendar days.
+  const asOf = new Date('2026-07-12T02:06:00Z');
+
+  it('속성 타임존의 "어제"까지 N일을 만든다 (LA)', () => {
+    expect(expectedDaysInZone('America/Los_Angeles', 3, asOf)).toEqual(['2026-07-08', '2026-07-09', '2026-07-10']);
+  });
+
+  it('같은 순간이라도 타임존이 다르면 다른 날짜 집합 (Seoul)', () => {
+    expect(expectedDaysInZone('Asia/Seoul', 3, asOf)).toEqual(['2026-07-09', '2026-07-10', '2026-07-11']);
+  });
+
+  it('days=0이면 빈 배열', () => {
+    expect(expectedDaysInZone('America/Los_Angeles', 0, asOf)).toEqual([]);
+  });
+
+  it('월 경계를 넘어가도 연속된 날짜(오래된→최신)를 만든다', () => {
+    // Yesterday in LA relative to asOf is 2026-07-10; walking back 12 days crosses June/July.
+    expect(expectedDaysInZone('America/Los_Angeles', 12, asOf)).toEqual([
+      '2026-06-29',
+      '2026-06-30',
+      '2026-07-01',
+      '2026-07-02',
+      '2026-07-03',
+      '2026-07-04',
+      '2026-07-05',
+      '2026-07-06',
+      '2026-07-07',
+      '2026-07-08',
+      '2026-07-09',
+      '2026-07-10',
+    ]);
   });
 });

@@ -129,7 +129,7 @@ async function buildSummary(period: Period): Promise<{
           fetchRange(auth, p.propertyId, ranges.previous),
           fetchTopValue(auth, p.propertyId, ranges.current, 'pagePath', 'screenPageViews'),
           fetchTopValue(auth, p.propertyId, ranges.current, 'sessionDefaultChannelGroup', 'sessions'),
-          fetchDailyMetrics(auth, p.propertyId, historyRange),
+          fetchDailyMetrics(auth, p.propertyId, historyRange, GA_HISTORY_FETCH_DAYS),
           fetchAiSessions(auth, p.propertyId, ranges.current),
           fetchAiSessions(auth, p.propertyId, ranges.previous),
           gscSiteUrl ? fetchSearchMetrics(auth, gscSiteUrl, gscRange).catch(() => null) : Promise.resolve(null),

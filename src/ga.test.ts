@@ -26,24 +26,52 @@ describe('mapBreakdownRows', () => {
 });
 
 describe('mapDailyMetricsRows', () => {
+  const expected3 = ['2026-01-01', '2026-01-02', '2026-01-03'];
   const base = [
     { dimensionValues: [{ value: '20260101' }], metricValues: [{ value: '10' }, { value: '20' }, { value: '2' }] },
     { dimensionValues: [{ value: '20260102' }], metricValues: [{ value: '5' }, { value: '9' }, { value: '1' }] },
-    // keepEmptyRows:true 이므로 0인 날도 리포트에 포함되어 들어온다.
+    // keepEmptyRows:true인 날도 실제로 행이 온 경우: 명시적 0.
     { dimensionValues: [{ value: '20260103' }], metricValues: [{ value: '0' }, { value: '0' }, { value: '0' }] },
   ];
   const ai = [{ dimensionValues: [{ value: '20260102' }], metricValues: [{ value: '3' }] }];
 
-  it('base+AI를 날짜별 병합(날짜는 리포트에서 도출)하고 YYYY-MM-DD로 변환', () => {
-    expect(mapDailyMetricsRows(base, ai)).toEqual([
+  it('base+AI를 expected 날짜 목록 기준으로 병합하고 YYYY-MM-DD로 변환', () => {
+    expect(mapDailyMetricsRows(base, ai, expected3)).toEqual([
       { date: '2026-01-01', metrics: { activeUsers: 10, sessions: 20, keyEvents: 2, aiSessions: 0 } },
       { date: '2026-01-02', metrics: { activeUsers: 5, sessions: 9, keyEvents: 1, aiSessions: 3 } },
       { date: '2026-01-03', metrics: { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0 } },
     ]);
   });
 
-  it('두 리포트가 비면 빈 배열', () => {
-    expect(mapDailyMetricsRows(null, null)).toEqual([]);
+  it('expected가 비면 리포트 내용과 무관하게 빈 배열', () => {
+    expect(mapDailyMetricsRows(base, ai, [])).toEqual([]);
+    expect(mapDailyMetricsRows(null, null, [])).toEqual([]);
+  });
+
+  it('GA가 희소한 행만 반환해도(중간 공백 + 말미 누락) expected 전체를 0으로 채워 반환 — keepEmptyRows 회귀 재현', () => {
+    // 실측: keepEmptyRows:true여도 GA가 요청 범위의 모든 날짜에 행을 채워 돌려주지 않는다
+    // (30일 요청에 21행, 8행 등). base/ai 리포트 모두 2026-02-02(중간)와 2026-02-05(말미)를
+    // 완전히 누락시킨 상황을 재현한다 — 출력은 여전히 expected와 같은 길이의 연속 5일이어야 한다.
+    const expected5 = ['2026-02-01', '2026-02-02', '2026-02-03', '2026-02-04', '2026-02-05'];
+    const sparseBase = [
+      { dimensionValues: [{ value: '20260201' }], metricValues: [{ value: '10' }, { value: '20' }, { value: '2' }] },
+      // 20260202: GA 응답에서 통째로 누락 (중간 공백)
+      { dimensionValues: [{ value: '20260203' }], metricValues: [{ value: '3' }, { value: '4' }, { value: '1' }] },
+      { dimensionValues: [{ value: '20260204' }], metricValues: [{ value: '7' }, { value: '8' }, { value: '0' }] },
+      // 20260205: GA 응답에서 통째로 누락 (말미 누락)
+    ];
+    const sparseAi = [
+      { dimensionValues: [{ value: '20260201' }], metricValues: [{ value: '5' }] },
+      { dimensionValues: [{ value: '20260204' }], metricValues: [{ value: '2' }] },
+    ];
+
+    expect(mapDailyMetricsRows(sparseBase, sparseAi, expected5)).toEqual([
+      { date: '2026-02-01', metrics: { activeUsers: 10, sessions: 20, keyEvents: 2, aiSessions: 5 } },
+      { date: '2026-02-02', metrics: { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0 } },
+      { date: '2026-02-03', metrics: { activeUsers: 3, sessions: 4, keyEvents: 1, aiSessions: 0 } },
+      { date: '2026-02-04', metrics: { activeUsers: 7, sessions: 8, keyEvents: 0, aiSessions: 2 } },
+      { date: '2026-02-05', metrics: { activeUsers: 0, sessions: 0, keyEvents: 0, aiSessions: 0 } },
+    ]);
   });
 });
 
