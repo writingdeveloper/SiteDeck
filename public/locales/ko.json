@@ -69,6 +69,7 @@
   "repos.needsRepos": "토큰은 설정되어 있습니다. 설정에서 추적할 저장소(owner/repo)를 추가하세요.",
   "repos.measuring": "측정 중…",
   "repos.empty": "데이터가 없습니다. \"지금 측정\"을 눌러 시작하세요.",
+  "repos.pending": "아직 측정되지 않음 — 측정 버튼을 누르세요.",
   "repos.referrers": "참조 출처",
   "repos.paths": "인기 경로",
   "repos.last14d": "최근 14일",

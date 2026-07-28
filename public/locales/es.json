@@ -69,6 +69,7 @@
   "repos.needsRepos": "El token está configurado. Añade en Ajustes los repos a seguir (owner/repo).",
   "repos.measuring": "Midiendo…",
   "repos.empty": "Sin datos aún. Pulsa «Medir ahora» para empezar.",
+  "repos.pending": "Sin medir todavía — pulsa Medir ahora.",
   "repos.referrers": "Referencias",
   "repos.paths": "Rutas populares",
   "repos.last14d": "últimos 14 días",
