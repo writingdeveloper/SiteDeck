@@ -14,7 +14,16 @@ import {
   isAuthenticated,
 } from './auth';
 import { AppError } from './errors';
-import { getSettings, updateSettings, type Settings } from './settings';
+import {
+  getGithubRepos,
+  getGithubToken,
+  getSettings,
+  githubEnvOverrides,
+  isRepoFullName,
+  maskSecret,
+  updateSettings,
+  type Settings,
+} from './settings';
 import { tServer } from './i18n';
 import { comparisonRanges, gaRanges, gaHistoryRange } from './periods';
 import {
@@ -234,6 +243,30 @@ async function serveStatic(res: http.ServerResponse, urlPath: string): Promise<v
 function errorBody(err: unknown): { error: { code: string; detail?: string } } {
   if (err instanceof AppError) return { error: { code: err.code, detail: err.detail } };
   return { error: { code: 'unknown', detail: err instanceof Error ? err.message : String(err) } };
+}
+
+/**
+ * GitHub half of /api/settings. Reports the EFFECTIVE values (env var wins over config.json,
+ * same precedence the runner reads through), plus which ones an env var is shadowing — so the
+ * form can warn that a save there won't take effect. The token itself never leaves the
+ * process: only a last-4 mask goes to the client.
+ */
+function githubSettingsState(): {
+  hasGithubToken: boolean;
+  githubTokenMasked: string | null;
+  githubRepos: string[];
+  githubTokenFromEnv: boolean;
+  githubReposFromEnv: boolean;
+} {
+  const token = getGithubToken();
+  const env = githubEnvOverrides();
+  return {
+    hasGithubToken: token !== null,
+    githubTokenMasked: token ? maskSecret(token) : null,
+    githubRepos: getGithubRepos(),
+    githubTokenFromEnv: env.token,
+    githubReposFromEnv: env.repos,
+  };
 }
 
 function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
@@ -492,6 +525,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       hasCredentials: credStatus === 'valid',
       credentialsStatus: credStatus,
       searchConsole,
+      ...githubSettingsState(),
     });
     return;
   }
@@ -499,8 +533,21 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   if (url.pathname === '/api/settings' && req.method === 'POST') {
     try {
       const body = await readJsonBody(req);
+      // Reject malformed repo entries instead of letting mergeSettings drop them silently:
+      // a dropped entry saves "successfully" and then never gets measured.
+      if (Array.isArray(body.githubRepos)) {
+        const bad = body.githubRepos.filter((r) => !isRepoFullName(r)).map((r) => String(r));
+        if (bad.length) {
+          json(res, 400, { error: { code: 'github_repos_invalid', detail: bad.join(', ') } });
+          return;
+        }
+      }
       const s = await updateSettings(body as Partial<Settings>);
-      json(res, 200, { language: s.language ?? null, hasPsiKey: Boolean(s.psiApiKey) });
+      json(res, 200, {
+        language: s.language ?? null,
+        hasPsiKey: Boolean(s.psiApiKey),
+        ...githubSettingsState(),
+      });
     } catch (err) {
       json(res, 500, errorBody(err));
     }

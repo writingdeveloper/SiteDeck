@@ -102,13 +102,19 @@ than 14 consecutive days** leaves a permanent gap.
 To enable it, create a **fine-grained personal access token** (github.com →
 Settings → Developer settings → Fine-grained tokens): grant access to the repos you
 want, with **Repository permissions → Administration: Read-only** (the permission
-the traffic API requires). Then add it to `~/.sitedeck/config.json` (never commit it):
+the traffic API requires). Then paste it into **Settings → GitHub token** and list the
+repos (`owner/repo`, comma-separated) under **GitHub repos** — both take effect
+immediately, no restart. **Clear** removes the stored token.
+
+The values live in `~/.sitedeck/config.json` (mode 0600, never commit it), so you can
+also write them there directly:
 
 ```json
 { "psiApiKey": "…", "githubToken": "github_pat_…", "githubRepos": ["writingdeveloper/SiteDeck"] }
 ```
 
-(Env overrides `SITEDECK_GITHUB_TOKEN` / `SITEDECK_GITHUB_REPOS` mirror the PSI key.)
+Env overrides `SITEDECK_GITHUB_TOKEN` / `SITEDECK_GITHUB_REPOS` mirror the PSI key —
+when either is set it wins over the file, and Settings says so and locks that field.
 Measured automatically once a day while the app runs, plus a manual **측정** (measure
 now) button. With no token the tab shows the setup hint; a repo the token can't read
 shows an error and the others continue.

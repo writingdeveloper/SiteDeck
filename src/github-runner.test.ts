@@ -41,6 +41,13 @@ describe('measureNow', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('returns no-repos when the token is set but nothing is tracked', () => {
+    mockToken.mockReturnValue('tok');
+    mockRepos.mockReturnValue([]);
+    expect(measureNow()).toEqual({ started: false, reason: 'no-repos' });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('fetches only well-formed owner/repo entries and records the rest as errors', async () => {
     mockToken.mockReturnValue('tok');
     mockRepos.mockReturnValue(['ok/repo', 'owner/repo/extra', 'noslash', 'bad/']);
@@ -79,6 +86,28 @@ describe('measureNow', () => {
     expect(measureNow()).toEqual({ started: false, reason: 'already-running' });
     release();
     await settle();
+  });
+});
+
+// The Repos tab renders its empty state off these two flags: `configured` gates the table,
+// `hasToken` picks WHICH hint is shown ("add a token" vs "add repos").
+describe('getGithubState — configured vs hasToken', () => {
+  it('is not configured without a token', () => {
+    mockToken.mockReturnValue(null);
+    mockRepos.mockReturnValue(['a/x']);
+    expect(getGithubState()).toMatchObject({ configured: false, hasToken: false });
+  });
+
+  it('is not configured when a token is set but no repos are tracked', () => {
+    mockToken.mockReturnValue('tok');
+    mockRepos.mockReturnValue([]);
+    expect(getGithubState()).toMatchObject({ configured: false, hasToken: true });
+  });
+
+  it('is configured once both halves are present', () => {
+    mockToken.mockReturnValue('tok');
+    mockRepos.mockReturnValue(['a/x']);
+    expect(getGithubState()).toMatchObject({ configured: true, hasToken: true });
   });
 });
 
