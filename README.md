@@ -208,6 +208,18 @@ Or push a `v*` tag and let the [release workflow](.github/workflows/release.yml)
 | `npm run release` | Build + publish a release to GitHub |
 | `npm test` | Unit tests (vitest) |
 | `npm run typecheck` | Type checking |
+| `node scripts/audit-gate.mjs` | Dependency audit gate (high/critical, with dated waivers) |
+
+### Dependency audit
+
+CI fails on any high or critical advisory. When one has no safe fix — a patched version that
+breaks a consumer, or an upstream that hasn't published yet — it can be waived in
+`scripts/audit-gate.mjs` with a reason and an `until` date, rather than lowering the bar for
+everything. The gate then fails on anything un-waived, and fails again once a waiver expires,
+so an accepted risk stays a decision on the record instead of a check nobody looks at.
+
+npm's headline count is larger than the advisory count: it counts every package along the
+chain, so a single advisory deep in a dependency inflates every parent. The gate reports both.
 
 ## Project structure
 
