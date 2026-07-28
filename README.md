@@ -99,15 +99,64 @@ API only returns the **trailing 14 days**, so SiteDeck snapshots it once a day i
 history — and **backfills** any missed days on the next launch. Offline for **more
 than 14 consecutive days** leaves a permanent gap.
 
-To enable it, create a **fine-grained personal access token** (github.com →
-Settings → Developer settings → Fine-grained tokens): grant access to the repos you
-want, with **Repository permissions → Administration: Read-only** (the permission
-the traffic API requires). Then paste it into **Settings → GitHub token** and list the
-repos (`owner/repo`, comma-separated) under **GitHub repos** — both take effect
-immediately, no restart. **Clear** removes the stored token.
+### Creating the token
 
-The values live in `~/.sitedeck/config.json` (mode 0600, never commit it), so you can
-also write them there directly:
+The traffic API is admin-only, so it needs a token. Use a **fine-grained personal access
+token** — it can be limited to the repos you actually watch, unlike a classic token, whose
+`repo` scope grants full read/write to everything you can reach.
+
+1. Open **https://github.com/settings/personal-access-tokens/new**
+   (github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens).
+2. **Token name** — anything, e.g. `sitedeck`.
+3. **Expiration** — fine-grained tokens *must* expire (1 year max). Note the date: when it
+   lapses, collection stops silently (see *When the token expires* below).
+4. **Repository access** — pick one:
+   - **Only select repositories** (recommended) — choose the repos you want on the deck.
+   - **All repositories** — every repo shows up in SiteDeck's picker, so you can add more
+     later without re-issuing. The trade-off: one token then carries admin-read over every
+     private repo you own, and SiteDeck stores it as plain text in `~/.sitedeck/config.json`.
+5. **Permissions → Repository permissions → Administration: _Read-only_**. That single
+   permission is what the traffic endpoints require. (*Metadata: Read-only* is added
+   automatically and is what lets the repo picker list your repos.) Leave everything else
+   at *No access*.
+6. **Generate token** and copy it — GitHub shows it exactly once.
+7. Paste it into **Settings → GitHub token** and press **Save**. It takes effect
+   immediately, no restart.
+
+Choosing *All repositories* does **not** by itself put every repo on the deck — SiteDeck
+only measures what's in the repo list (next section). It just makes everything available
+to pick.
+
+### Rotating and revoking
+
+**Clear** (next to the token field) removes the stored token; the Repos tab keeps the
+history it already collected and simply stops updating. To rotate, generate a new token,
+Save it over the old one, then delete the old one at
+**https://github.com/settings/tokens?type=beta**. Saving a new token does not revoke the
+old one — revoke it on GitHub.
+
+### When the token expires
+
+An expired or revoked token fails every request with `401 Bad credentials`, which the
+Repos tab shows as a per-repo error row. Nothing else breaks — previously collected
+history stays, and the daily run resumes once you save a valid token. Because GitHub's
+traffic API only serves the trailing **14 days**, an expired token that goes unnoticed for
+longer than that leaves a permanent hole in the history, so it is worth acting on the
+error rows when they appear.
+
+### Choosing repos
+
+Press **Choose…** next to *GitHub repos*: SiteDeck asks GitHub which
+repos that token can administer and shows them as a searchable checklist (newest push
+first, archived ones omitted since they collect no traffic). The list *is* the token's
+scope — grant the token more repos and more appear. You can also type `owner/repo`
+entries by hand, comma-separated; hand-typed entries the picker can't see are kept when
+you apply a selection.
+
+### Where the settings live
+
+Both values sit in `~/.sitedeck/config.json` (mode 0600, never commit it), so you can also
+write them there directly:
 
 ```json
 { "psiApiKey": "…", "githubToken": "github_pat_…", "githubRepos": ["writingdeveloper/SiteDeck"] }
@@ -115,9 +164,10 @@ also write them there directly:
 
 Env overrides `SITEDECK_GITHUB_TOKEN` / `SITEDECK_GITHUB_REPOS` mirror the PSI key —
 when either is set it wins over the file, and Settings says so and locks that field.
-Measured automatically once a day while the app runs, plus a manual **측정** (measure
-now) button. With no token the tab shows the setup hint; a repo the token can't read
-shows an error and the others continue.
+
+Measurement runs automatically once a day while the app is open, plus a manual
+**Measure now** button. With no token the tab links you to Settings; with a token but no
+repos it says so; a repo the token can't read shows an error row and the others continue.
 
 ## Desktop app (Electron)
 

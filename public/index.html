@@ -182,14 +182,29 @@
             <small id="github-token-status" class="muted"></small>
           </label>
 
-          <label class="field">
-            <span data-i18n="settings.githubReposLabel">GitHub repos</span>
+          <div class="field">
+            <label for="github-repos" data-i18n="settings.githubReposLabel">GitHub repos</label>
             <span class="field-row">
               <input id="github-repos" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="settings.githubReposPlaceholder" />
               <button id="github-repos-save" type="button" data-i18n="btn.save">Save</button>
+              <button id="github-repos-browse" type="button" data-i18n="settings.githubBrowse">Choose…</button>
             </span>
             <small id="github-repos-status" class="muted"></small>
-          </label>
+
+            <!-- Repo picker: the token's own scope, rendered as a checklist. Typing 100+
+                 "owner/repo" strings by hand is the thing this exists to avoid. -->
+            <div id="repo-picker" class="repo-picker" hidden>
+              <div class="repo-picker-head">
+                <input id="repo-picker-filter" type="search" autocomplete="off" data-i18n-placeholder="settings.githubPickerFilter" />
+                <button id="repo-picker-all" type="button" data-i18n="settings.githubPickerAll">Select shown</button>
+                <button id="repo-picker-none" type="button" data-i18n="settings.githubPickerNone">Clear shown</button>
+                <button id="repo-picker-apply" type="button" data-i18n="settings.githubPickerApply">Apply</button>
+                <button id="repo-picker-close" type="button" data-i18n="settings.githubPickerClose">Close</button>
+              </div>
+              <div id="repo-picker-count" class="muted"></div>
+              <div id="repo-picker-list" class="repo-picker-list"></div>
+            </div>
+          </div>
 
           <div class="field">
             <span data-i18n="settings.versionLabel">Version</span>

@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseViews, parseClones, parseReferrers, parsePaths, fetchRepoTraffic, parseRepo } from './github';
+import {
+  parseViews,
+  parseClones,
+  parseReferrers,
+  parsePaths,
+  fetchRepoTraffic,
+  parseRepo,
+  parseAccessibleRepos,
+  fetchAccessibleRepos,
+  REPO_MAX_PAGES,
+} from './github';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -71,5 +81,70 @@ describe('fetchRepoTraffic', () => {
   it('throws on a non-ok response (so the runner records a per-repo error)', async () => {
     stubGh(() => ({}), false, 403);
     await expect(fetchRepoTraffic('tok', 'o', 'r')).rejects.toThrow(/403/);
+  });
+});
+
+describe('parseAccessibleRepos', () => {
+  const repo = (over: Record<string, unknown>) => ({
+    full_name: 'o/r',
+    private: false,
+    fork: false,
+    archived: false,
+    pushed_at: '2026-07-01T00:00:00Z',
+    permissions: { admin: true },
+    ...over,
+  });
+
+  it('keeps only admin, non-archived repos — the ones traffic can actually be read for', () => {
+    const out = parseAccessibleRepos([
+      repo({ full_name: 'o/admin' }),
+      repo({ full_name: 'o/readonly', permissions: { admin: false } }),
+      repo({ full_name: 'o/archived', archived: true }),
+      repo({ full_name: 'o/nopermissions', permissions: undefined }),
+    ]);
+    expect(out.map((r) => r.fullName)).toEqual(['o/admin']);
+  });
+
+  it('sorts most-recently-pushed first so the useful repos head a long list', () => {
+    const out = parseAccessibleRepos([
+      repo({ full_name: 'o/old', pushed_at: '2024-01-01T00:00:00Z' }),
+      repo({ full_name: 'o/new', pushed_at: '2026-07-20T00:00:00Z' }),
+      repo({ full_name: 'o/mid', pushed_at: '2025-06-01T00:00:00Z' }),
+    ]);
+    expect(out.map((r) => r.fullName)).toEqual(['o/new', 'o/mid', 'o/old']);
+  });
+
+  it('carries the private/fork flags the picker labels rows with', () => {
+    const out = parseAccessibleRepos([repo({ full_name: 'o/p', private: true, fork: true })]);
+    expect(out[0]).toMatchObject({ fullName: 'o/p', private: true, fork: true });
+  });
+
+  it('drops malformed entries and survives a non-array body', () => {
+    expect(parseAccessibleRepos([repo({ full_name: 'noslash' }), repo({ full_name: undefined })])).toEqual([]);
+    expect(parseAccessibleRepos(null)).toEqual([]);
+    expect(parseAccessibleRepos({ message: 'Bad credentials' })).toEqual([]);
+  });
+});
+
+describe('fetchAccessibleRepos', () => {
+  it('stops at a short page and reports no truncation', async () => {
+    const pages: unknown[][] = [[{ full_name: 'o/a', permissions: { admin: true }, pushed_at: '2026-07-01T00:00:00Z' }]];
+    stubGh(() => pages[0]);
+    const { repos, truncated } = await fetchAccessibleRepos('tok');
+    expect(repos.map((r) => r.fullName)).toEqual(['o/a']);
+    expect(truncated).toBe(false);
+  });
+
+  it('reports truncated=true rather than silently capping at the page limit', async () => {
+    // Always a FULL page → paging never terminates on its own; the cap must own that.
+    const full = Array.from({ length: 100 }, (_, i) => ({
+      full_name: `o/r${i}`,
+      permissions: { admin: true },
+      pushed_at: '2026-07-01T00:00:00Z',
+    }));
+    stubGh(() => full);
+    const { repos, truncated } = await fetchAccessibleRepos('tok');
+    expect(truncated).toBe(true);
+    expect(repos).toHaveLength(100 * REPO_MAX_PAGES);
   });
 });
