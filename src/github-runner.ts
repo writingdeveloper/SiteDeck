@@ -25,8 +25,13 @@ export async function initGithub(): Promise<void> {
 }
 
 export function getGithubState() {
+  // A token with no repo list measures nothing, so it isn't "configured" — but the two are
+  // reported separately so the tab can say WHICH half is missing instead of one vague hint.
+  const hasToken = getGithubToken() !== null;
+  const hasRepos = getGithubRepos().length > 0;
   return {
-    configured: getGithubToken() !== null,
+    configured: hasToken && hasRepos,
+    hasToken,
     isMeasuring: measuring,
     lastRunAt: store.lastRunAt,
     repos: summarize(store, GITHUB_TREND_LENGTH),
@@ -69,6 +74,8 @@ async function runMeasurement(): Promise<void> {
 
 export function measureNow(): { started: boolean; reason?: string } {
   if (getGithubToken() === null) return { started: false, reason: 'not-configured' };
+  // Distinct from 'not-configured': the token is fine, there is just nothing to measure.
+  if (getGithubRepos().length === 0) return { started: false, reason: 'no-repos' };
   if (measuring) return { started: false, reason: 'already-running' };
   void runMeasurement();
   return { started: true };

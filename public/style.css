@@ -379,6 +379,15 @@ svg.spark {
 .settings .muted {
   color: var(--muted);
 }
+/* Field-level validation feedback. The shared #settings-status banner sits below the whole
+   panel, which is off-screen once the panel is this tall — so a rejected save has to say so
+   next to the input it came from, not only down there. */
+.settings .field small.bad {
+  color: var(--down);
+}
+.settings .field small.warn {
+  color: var(--warn);
+}
 
 .setup-steps {
   list-style: none;

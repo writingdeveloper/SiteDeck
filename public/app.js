@@ -782,7 +782,10 @@ function renderRepos(data) {
     repos.tbody.innerHTML = "";
     repos.status.hidden = false;
     repos.status.className = "status warn";
-    repos.status.textContent = t("repos.notConfigured");
+    // Name the half that's actually missing, and link to Settings — where both are now
+    // editable — instead of telling the user to go edit config.json by hand.
+    const hint = data.hasToken ? "repos.needsRepos" : "repos.notConfigured";
+    repos.status.innerHTML = `${t(hint)} <a href="#" class="link-settings">${t("link.openSettings")}</a>`;
     return;
   }
   const list = data.repos ?? [];
@@ -898,6 +901,13 @@ const settings = {
   psiKey: document.getElementById("psi-key"),
   psiSave: document.getElementById("psi-save"),
   psiStatus: document.getElementById("psi-status"),
+  ghToken: document.getElementById("github-token"),
+  ghTokenSave: document.getElementById("github-token-save"),
+  ghTokenClear: document.getElementById("github-token-clear"),
+  ghTokenStatus: document.getElementById("github-token-status"),
+  ghRepos: document.getElementById("github-repos"),
+  ghReposSave: document.getElementById("github-repos-save"),
+  ghReposStatus: document.getElementById("github-repos-status"),
   setupSteps: document.getElementById("setup-steps"),
   gscField: document.getElementById("gsc-field"),
   gscStatus: document.getElementById("gsc-status"),
@@ -913,6 +923,7 @@ async function loadSettings() {
   settings.lang.value = getLocale();
   settings.theme.value = store.get("theme") || "system";
   settings.psiStatus.textContent = s.hasPsiKey ? t("settings.psiKeySet", { masked: s.psiKeyMasked }) : "";
+  renderGithubSettings(s);
   renderSetup(s);
   renderGsc(s.searchConsole);
   try {
@@ -921,7 +932,49 @@ async function loadSettings() {
   } catch {}
 }
 
-// Onboarding checklist: live ✓/✗ for credentials (valid/invalid/missing) + PSI key.
+// "owner/repo" — the same shape the server enforces (isRepoFullName in src/settings.ts).
+// Checked here too so a typo is reported before the save instead of being dropped silently.
+const REPO_FULL_NAME = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+
+/** Split a free-form repo list (commas, spaces or newlines) into trimmed, non-empty entries. */
+function parseRepoList(raw) {
+  return String(raw)
+    .split(/[\s,]+/)
+    .map((r) => r.trim())
+    .filter(Boolean);
+}
+
+function renderGithubSettings(s) {
+  const repos = s.githubRepos ?? [];
+  // An env var shadows config.json entirely, so a save here would be read but never used —
+  // say which variable owns the value and lock the input instead of faking a successful save.
+  const tokenLocked = Boolean(s.githubTokenFromEnv);
+  const reposLocked = Boolean(s.githubReposFromEnv);
+
+  settings.ghToken.disabled = tokenLocked;
+  settings.ghTokenSave.disabled = tokenLocked;
+  settings.ghTokenClear.hidden = tokenLocked || !s.hasGithubToken;
+  settings.ghTokenStatus.className = "muted"; // drop a previous showFieldError highlight
+  settings.ghTokenStatus.textContent = tokenLocked
+    ? t("settings.githubEnvOverride", { name: "SITEDECK_GITHUB_TOKEN" })
+    : s.hasGithubToken
+      ? t("settings.githubTokenSet", { masked: s.githubTokenMasked ?? "" })
+      : t("settings.githubTokenOptional");
+
+  settings.ghRepos.disabled = reposLocked;
+  settings.ghReposSave.disabled = reposLocked;
+  // Never overwrite a list the user is in the middle of editing (loadSettings also runs on
+  // tab activation and after unrelated saves).
+  if (document.activeElement !== settings.ghRepos) settings.ghRepos.value = repos.join(", ");
+  settings.ghReposStatus.className = "muted";
+  settings.ghReposStatus.textContent = reposLocked
+    ? t("settings.githubEnvOverride", { name: "SITEDECK_GITHUB_REPOS" })
+    : repos.length
+      ? t("settings.githubReposSet", { count: repos.length })
+      : t("settings.githubReposNone");
+}
+
+// Onboarding checklist: live ✓/✗ for credentials (valid/invalid/missing) + PSI key + GitHub.
 function renderSetup(s) {
   const cs = s.credentialsStatus || (s.hasCredentials ? "valid" : "missing");
   const credOk = cs === "valid";
@@ -935,12 +988,21 @@ function renderSetup(s) {
   const psiText = psiOk
     ? t("settings.psiKeySet", { masked: escapeHtml(s.psiKeyMasked ?? "") })
     : t("settings.psiKeyOptional");
+  const ghRepos = s.githubRepos ?? [];
+  const ghOk = Boolean(s.hasGithubToken) && ghRepos.length > 0;
+  const ghText = ghOk
+    ? t("settings.githubReposSet", { count: ghRepos.length })
+    : s.hasGithubToken
+      ? t("settings.githubReposNone")
+      : t("settings.githubTokenOptional");
   const guide = `<a href="${SETUP_URL}" target="_blank" rel="noopener noreferrer">${t("link.setupGuide")}</a>`;
   settings.setupSteps.innerHTML =
     `<li class="${credOk ? "ok" : "bad"}"><span class="mark">${credOk ? "✓" : "✗"}</span> ` +
     `<b>${t("settings.credentialsLabel")}</b> — ${credText} ${credOk ? "" : guide}</li>` +
     `<li class="${psiOk ? "ok" : "opt"}"><span class="mark">${psiOk ? "✓" : "○"}</span> ` +
-    `<b>${t("settings.psiKeyLabel")}</b> — ${psiText}</li>`;
+    `<b>${t("settings.psiKeyLabel")}</b> — ${psiText}</li>` +
+    `<li class="${ghOk ? "ok" : "opt"}"><span class="mark">${ghOk ? "✓" : "○"}</span> ` +
+    `<b>${t("settings.githubLabel")}</b> — ${escapeHtml(ghText)}</li>`;
 }
 
 // Show a one-time "reconnect to enable Search Console" prompt only when the cached
@@ -986,6 +1048,72 @@ settings.psiSave.addEventListener("click", async () => {
   } catch (err) {
     showSettingsStatus(t("error.unknown", { detail: err?.message ?? String(err) }), "error");
   }
+});
+
+/** POST a settings patch, surfacing the server's own error code when it rejects one. */
+async function saveSettings(patch, { onSaved, message } = {}) {
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const code = body?.error?.code;
+      showSettingsStatus(
+        code ? t(`error.${code}`, { detail: body.error.detail ?? "" }) : t("error.unknown", { detail: `HTTP ${res.status}` }),
+        "error",
+      );
+      return;
+    }
+    if (onSaved) onSaved();
+    showSettingsStatus(message ?? t("settings.saved"), "info");
+    loadSettings();
+  } catch (err) {
+    showSettingsStatus(t("error.unknown", { detail: err?.message ?? String(err) }), "error");
+  }
+}
+
+/**
+ * Report a rejected save next to the field itself as well as in the shared banner — the
+ * banner renders below the whole settings panel, which is off-screen on a short window.
+ * renderGithubSettings resets the element back to `muted` on the next load.
+ */
+function showFieldError(el, text, kind) {
+  el.className = kind;
+  el.textContent = text;
+}
+
+settings.ghTokenSave.addEventListener("click", () => {
+  const value = settings.ghToken.value.trim();
+  // An empty box means "I typed nothing", never "wipe my token" — clearing is the explicit
+  // Clear button, so a stray Save can't silently disconnect the Repos tab.
+  if (!value) {
+    showSettingsStatus(t("settings.githubTokenEmpty"), "warn");
+    showFieldError(settings.ghTokenStatus, t("settings.githubTokenEmpty"), "warn");
+    return;
+  }
+  saveSettings({ githubToken: value }, { onSaved: () => { settings.ghToken.value = ""; } });
+});
+
+settings.ghTokenClear.addEventListener("click", () => {
+  saveSettings(
+    { githubToken: "" },
+    { onSaved: () => { settings.ghToken.value = ""; }, message: t("settings.githubTokenCleared") },
+  );
+});
+
+settings.ghReposSave.addEventListener("click", () => {
+  const entries = parseRepoList(settings.ghRepos.value);
+  const bad = entries.filter((r) => !REPO_FULL_NAME.test(r));
+  if (bad.length) {
+    const msg = t("settings.githubReposInvalid", { list: bad.join(", ") });
+    showSettingsStatus(msg, "error");
+    showFieldError(settings.ghReposStatus, msg, "bad");
+    return;
+  }
+  saveSettings({ githubRepos: entries });
 });
 
 const electronUpdate =
