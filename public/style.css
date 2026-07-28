@@ -358,7 +358,10 @@ svg.spark {
   flex-direction: column;
   gap: 6px;
 }
-.settings .field > span:first-child {
+/* Field title — a <label for> when the field owns a picker (a nested checkbox inside a
+   wrapping <label> would double-fire), a <span> for the simple wrapped fields. */
+.settings .field > span:first-child,
+.settings .field > label:first-child {
   font-weight: 600;
 }
 .settings .field-row {
@@ -387,6 +390,76 @@ svg.spark {
 }
 .settings .field small.warn {
   color: var(--warn);
+}
+
+/* Repo picker — a scrolling checklist of everything the token can reach. Capped in height
+   so a 160-repo account can't push the rest of Settings off the screen. */
+.repo-picker {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  background: var(--bg);
+}
+.repo-picker[hidden] {
+  display: none;
+}
+.repo-picker-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.repo-picker-head input {
+  flex: 1;
+  min-width: 160px;
+}
+.repo-picker-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* NOT .repo-row — that class belongs to the Repos table and has a click handler. */
+.picker-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.picker-row:hover {
+  background: var(--panel-hover);
+}
+.picker-row input {
+  flex: none;
+  min-width: 0;
+  margin: 0;
+}
+.picker-row .picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-row .picker-badge {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.picker-row .picker-date {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .setup-steps {

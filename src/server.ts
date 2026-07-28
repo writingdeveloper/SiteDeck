@@ -47,6 +47,7 @@ import {
   wow,
   type GaHistory,
 } from './ga-store';
+import { fetchAccessibleRepos } from './github';
 import { fetchSearchMetrics, listGscSites, matchSites } from './gsc';
 import { getOnPageReport } from './onpage';
 import { mapPool } from './concurrency';
@@ -487,6 +488,23 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       json(res, 200, getGithubState());
     } catch (err) {
       json(res, 500, errorBody(err));
+    }
+    return;
+  }
+
+  // Repo picker source. Deliberately NOT cached: it's fetched on an explicit button press,
+  // and a stale list would hide a repo the user just created or just granted the token.
+  if (url.pathname === '/api/github/available-repos') {
+    const token = getGithubToken();
+    if (!token) {
+      json(res, 400, { error: { code: 'github_token_missing' } });
+      return;
+    }
+    try {
+      const { repos, truncated } = await fetchAccessibleRepos(token);
+      json(res, 200, { repos, truncated });
+    } catch (err) {
+      json(res, 502, errorBody(err));
     }
     return;
   }

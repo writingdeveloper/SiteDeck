@@ -92,6 +92,61 @@ export async function fetchRepoTraffic(token: string, owner: string, repo: strin
   return { views: parseViews(views), clones: parseClones(clones), referrers: parseReferrers(referrers), paths: parsePaths(paths) };
 }
 
+/** One repo the token can reach, as offered in the Settings picker. */
+export interface AccessibleRepo {
+  fullName: string;
+  private: boolean;
+  fork: boolean;
+  archived: boolean;
+  pushedAt: string;
+}
+
+/**
+ * Keep only repos this token could actually measure: traffic needs admin on the repo, and an
+ * archived repo has no new traffic to collect. Sorted by most-recently-pushed so the repos
+ * worth watching are the ones at the top of a 100+ item list.
+ */
+export function parseAccessibleRepos(body: unknown): AccessibleRepo[] {
+  return (Array.isArray(body) ? body : [])
+    .filter((r) => r?.permissions?.admin === true && r?.archived !== true)
+    .map((r) => ({
+      fullName: String(r?.full_name ?? ''),
+      private: Boolean(r?.private),
+      fork: Boolean(r?.fork),
+      archived: Boolean(r?.archived),
+      pushedAt: typeof r?.pushed_at === 'string' ? r.pushed_at : '',
+    }))
+    .filter((r) => r.fullName.includes('/'))
+    .sort((a, b) => b.pushedAt.localeCompare(a.pushedAt));
+}
+
+/** Hard cap on discovery paging — reported to the caller rather than silently truncating. */
+export const REPO_PAGE_SIZE = 100;
+export const REPO_MAX_PAGES = 10;
+
+/**
+ * Every repo the token can administer, across personal and org accounts. A fine-grained PAT
+ * only ever returns what it was granted, so this list IS the token's scope — which is exactly
+ * what makes it safe to offer as a picker.
+ */
+export async function fetchAccessibleRepos(
+  token: string,
+): Promise<{ repos: AccessibleRepo[]; truncated: boolean }> {
+  const repos: AccessibleRepo[] = [];
+  for (let page = 1; page <= REPO_MAX_PAGES; page++) {
+    const url =
+      `${API}/user/repos?affiliation=owner,collaborator,organization_member` +
+      `&per_page=${REPO_PAGE_SIZE}&page=${page}&sort=pushed`;
+    const body = await ghRequest(token, url);
+    repos.push(...parseAccessibleRepos(body));
+    // A short page is the last page; a full one means there may be more.
+    if (!Array.isArray(body) || body.length < REPO_PAGE_SIZE) {
+      return { repos, truncated: false };
+    }
+  }
+  return { repos, truncated: true };
+}
+
 /** Split "owner/repo" into its parts, or null if it isn't exactly that shape. */
 export function parseRepo(fullName: string): { owner: string; repo: string } | null {
   const parts = fullName.split('/');

@@ -102,9 +102,15 @@ than 14 consecutive days** leaves a permanent gap.
 To enable it, create a **fine-grained personal access token** (github.com →
 Settings → Developer settings → Fine-grained tokens): grant access to the repos you
 want, with **Repository permissions → Administration: Read-only** (the permission
-the traffic API requires). Then paste it into **Settings → GitHub token** and list the
-repos (`owner/repo`, comma-separated) under **GitHub repos** — both take effect
+the traffic API requires). Then paste it into **Settings → GitHub token** — it takes effect
 immediately, no restart. **Clear** removes the stored token.
+
+For the repo list, press **Choose…** next to *GitHub repos*: SiteDeck asks GitHub which
+repos that token can administer and shows them as a searchable checklist (newest push
+first, archived ones omitted since they collect no traffic). The list *is* the token's
+scope — grant the token more repos and more appear. You can also type `owner/repo`
+entries by hand, comma-separated; hand-typed entries the picker can't see are kept when
+you apply a selection.
 
 The values live in `~/.sitedeck/config.json` (mode 0600, never commit it), so you can
 also write them there directly:

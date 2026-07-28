@@ -908,6 +908,15 @@ const settings = {
   ghRepos: document.getElementById("github-repos"),
   ghReposSave: document.getElementById("github-repos-save"),
   ghReposStatus: document.getElementById("github-repos-status"),
+  ghBrowse: document.getElementById("github-repos-browse"),
+  picker: document.getElementById("repo-picker"),
+  pickerFilter: document.getElementById("repo-picker-filter"),
+  pickerList: document.getElementById("repo-picker-list"),
+  pickerCount: document.getElementById("repo-picker-count"),
+  pickerAll: document.getElementById("repo-picker-all"),
+  pickerNone: document.getElementById("repo-picker-none"),
+  pickerApply: document.getElementById("repo-picker-apply"),
+  pickerClose: document.getElementById("repo-picker-close"),
   setupSteps: document.getElementById("setup-steps"),
   gscField: document.getElementById("gsc-field"),
   gscStatus: document.getElementById("gsc-status"),
@@ -963,6 +972,9 @@ function renderGithubSettings(s) {
 
   settings.ghRepos.disabled = reposLocked;
   settings.ghReposSave.disabled = reposLocked;
+  // Nothing to browse without a token, and nothing to change when an env var owns the list.
+  settings.ghBrowse.disabled = reposLocked || !s.hasGithubToken;
+  if (reposLocked) settings.picker.hidden = true;
   // Never overwrite a list the user is in the middle of editing (loadSettings also runs on
   // tab activation and after unrelated saves).
   if (document.activeElement !== settings.ghRepos) settings.ghRepos.value = repos.join(", ");
@@ -1102,6 +1114,110 @@ settings.ghTokenClear.addEventListener("click", () => {
     { githubToken: "" },
     { onSaved: () => { settings.ghToken.value = ""; }, message: t("settings.githubTokenCleared") },
   );
+});
+
+// --- Repo picker: choose from what the token can actually reach ---
+// Fetched list for the open picker; checkbox state lives in the DOM so filtering never
+// loses a selection the user already made.
+let pickerRepos = [];
+
+function selectedInPicker() {
+  return Array.from(settings.pickerList.querySelectorAll("input:checked")).map((c) => c.value);
+}
+
+function updatePickerCount() {
+  const shown = settings.pickerList.querySelectorAll(".picker-row:not([hidden])").length;
+  settings.pickerCount.textContent = t("settings.githubPickerCount", {
+    selected: selectedInPicker().length,
+    shown,
+    total: pickerRepos.length,
+  });
+}
+
+function renderPicker() {
+  const chosen = new Set(parseRepoList(settings.ghRepos.value));
+  settings.pickerList.innerHTML = pickerRepos
+    .map((r) => {
+      const badges =
+        (r.private ? `<span class="picker-badge">${t("settings.githubPickerPrivate")}</span>` : "") +
+        (r.fork ? `<span class="picker-badge">${t("settings.githubPickerFork")}</span>` : "");
+      return `<label class="picker-row">
+        <input type="checkbox" value="${escapeHtml(r.fullName)}"${chosen.has(r.fullName) ? " checked" : ""} />
+        <span class="picker-name">${escapeHtml(r.fullName)}</span>
+        ${badges}
+        <span class="picker-date">${escapeHtml((r.pushedAt || "").slice(0, 10))}</span>
+      </label>`;
+    })
+    .join("");
+  applyPickerFilter();
+}
+
+function applyPickerFilter() {
+  const q = settings.pickerFilter.value.trim().toLowerCase();
+  settings.pickerList.querySelectorAll(".picker-row").forEach((row) => {
+    const name = row.querySelector("input").value.toLowerCase();
+    row.hidden = q ? !name.includes(q) : false;
+  });
+  updatePickerCount();
+}
+
+settings.ghBrowse.addEventListener("click", async () => {
+  if (!settings.picker.hidden) {
+    settings.picker.hidden = true;
+    return;
+  }
+  settings.ghBrowse.disabled = true;
+  settings.ghBrowse.setAttribute("aria-busy", "true");
+  try {
+    const res = await fetch("/api/github/available-repos");
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const code = body?.error?.code;
+      showFieldError(
+        settings.ghReposStatus,
+        code ? t(`error.${code}`, { detail: body.error.detail ?? "" }) : `HTTP ${res.status}`,
+        "bad",
+      );
+      return;
+    }
+    pickerRepos = body.repos ?? [];
+    settings.picker.hidden = false;
+    settings.pickerFilter.value = "";
+    renderPicker();
+    // Never let a capped list read as "this is everything you have".
+    if (body.truncated) showSettingsStatus(t("settings.githubPickerTruncated"), "warn");
+  } catch (err) {
+    showFieldError(settings.ghReposStatus, err?.message ?? String(err), "bad");
+  } finally {
+    settings.ghBrowse.disabled = false;
+    settings.ghBrowse.removeAttribute("aria-busy");
+  }
+});
+
+settings.pickerFilter.addEventListener("input", applyPickerFilter);
+settings.pickerList.addEventListener("change", updatePickerCount);
+
+// Bulk actions act on the FILTERED rows only — "select shown", not "select all 163".
+settings.pickerAll.addEventListener("click", () => {
+  settings.pickerList.querySelectorAll(".picker-row:not([hidden]) input").forEach((c) => { c.checked = true; });
+  updatePickerCount();
+});
+settings.pickerNone.addEventListener("click", () => {
+  settings.pickerList.querySelectorAll(".picker-row:not([hidden]) input").forEach((c) => { c.checked = false; });
+  updatePickerCount();
+});
+
+settings.pickerClose.addEventListener("click", () => { settings.picker.hidden = true; });
+
+settings.pickerApply.addEventListener("click", () => {
+  // Entries the picker can't show (an org repo outside the token's scope, a hand-typed one)
+  // are kept — applying a selection must never silently drop a repo the user added.
+  const listed = new Set(pickerRepos.map((r) => r.fullName));
+  const extras = parseRepoList(settings.ghRepos.value).filter((r) => !listed.has(r));
+  const next = [...selectedInPicker(), ...extras];
+  settings.ghRepos.value = next.join(", ");
+  settings.picker.hidden = true;
+  saveSettings({ githubRepos: next });
 });
 
 settings.ghReposSave.addEventListener("click", () => {
