@@ -111,6 +111,60 @@ describe('getGithubState — configured vs hasToken', () => {
   });
 });
 
+// A repo that is configured but has no store data must still appear. Without this it silently
+// drops out of the Repos tab until the next daily run — which reads as "my save didn't work".
+// NOTE: `store` is module-level and accumulates across the tests in this file, so these use
+// repo names no earlier test has measured — otherwise they'd already be real rows, not pending.
+describe('getGithubState — pending repos', () => {
+  it('lists a configured repo with no measurements as pending', () => {
+    mockToken.mockReturnValue('tok');
+    mockRepos.mockReturnValue(['fresh/one', 'fresh/two']);
+    const pending = getGithubState().repos.filter((r) => 'pending' in r && r.pending);
+    expect(pending.map((r) => r.fullName).sort()).toEqual(['fresh/one', 'fresh/two']);
+    // Named by its repo half, like a measured row, so the table column stays consistent.
+    expect(pending.find((r) => r.fullName === 'fresh/one')?.displayName).toBe('one');
+  });
+
+  it('drops the pending row once the repo has been measured', async () => {
+    mockToken.mockReturnValue('tok');
+    mockRepos.mockReturnValue(['measured/now']);
+    mockFetch.mockResolvedValue(EMPTY);
+    measureNow();
+    await settle();
+    const row = getGithubState().repos.find((r) => r.fullName === 'measured/now');
+    expect(row).toBeDefined();
+    expect('pending' in (row ?? {})).toBe(false);
+  });
+
+  it('stops listing a repo dropped from the tracked list, without touching its stored data', async () => {
+    mockToken.mockReturnValue('tok');
+    mockRepos.mockReturnValue(['kept/repo', 'dropped/repo']);
+    mockFetch.mockResolvedValue(EMPTY);
+    measureNow();
+    await settle();
+    expect(getGithubState().repos.map((r) => r.fullName).sort()).toEqual(['dropped/repo', 'kept/repo']);
+
+    mockRepos.mockReturnValue(['kept/repo']);
+    expect(getGithubState().repos.map((r) => r.fullName)).toEqual(['kept/repo']);
+
+    // Re-adding brings the measured row straight back — the data was never deleted.
+    mockRepos.mockReturnValue(['kept/repo', 'dropped/repo']);
+    const back = getGithubState().repos.find((r) => r.fullName === 'dropped/repo');
+    expect('pending' in (back ?? {})).toBe(false);
+  });
+
+  it('does not duplicate a repo that already has an error row', async () => {
+    mockToken.mockReturnValue('tok');
+    mockRepos.mockReturnValue(['broken/repo']);
+    mockFetch.mockRejectedValue(new Error('boom'));
+    measureNow();
+    await settle();
+    const state = getGithubState();
+    expect(state.errors.map((e) => e.repo)).toEqual(['broken/repo']);
+    expect(state.repos.filter((r) => r.fullName === 'broken/repo')).toHaveLength(0);
+  });
+});
+
 // Regression coverage for the CRITICAL data-loss fix in store-io.ts's loadJsonStore: a FAILED
 // READ (anything but ENOENT) must never be treated as safe to overwrite. loadJsonStore's own
 // rethrow is covered by store-io.test.ts; these two tests cover the OTHER half of the fix —

@@ -69,6 +69,7 @@
   "repos.needsRepos": "トークンは設定済みです。設定で追跡するリポジトリ（owner/repo）を追加してください。",
   "repos.measuring": "測定中…",
   "repos.empty": "データがありません。「今すぐ測定」を押して開始してください。",
+  "repos.pending": "未測定 — 「測定」ボタンを押してください。",
   "repos.referrers": "参照元",
   "repos.paths": "人気のパス",
   "repos.last14d": "過去 14 日",

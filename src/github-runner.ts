@@ -1,6 +1,7 @@
 import { GITHUB_STORE_PATH, GITHUB_INTERVAL_MS, GITHUB_CONCURRENCY, GITHUB_RETENTION_DAYS, GITHUB_TREND_LENGTH } from './config';
 import { getGithubToken, getGithubRepos } from './settings';
 import { fetchRepoTraffic, parseRepo } from './github';
+// (parseRepo also names pending rows — see getGithubState.)
 import { shouldMeasure } from './schedule';
 import { mapPool } from './concurrency';
 import { type GithubStore, emptyStore, loadStore, saveStore, upsertDays, putSnapshot, summarize } from './github-store';
@@ -28,13 +29,25 @@ export function getGithubState() {
   // A token with no repo list measures nothing, so it isn't "configured" — but the two are
   // reported separately so the tab can say WHICH half is missing instead of one vague hint.
   const hasToken = getGithubToken() !== null;
-  const hasRepos = getGithubRepos().length > 0;
+  const configuredRepos = getGithubRepos();
+  // Only what's currently tracked. A repo dropped from the list keeps its rows in
+  // github.json (re-adding it restores the history, and retention prunes it eventually),
+  // but it must leave the table — otherwise removing a repo appears to do nothing.
+  const tracked = new Set(configuredRepos);
+  const measured = summarize(store, GITHUB_TREND_LENGTH).filter((r) => tracked.has(r.fullName));
+  // A configured repo with nothing in the store yet (just added, or never successfully
+  // measured) would otherwise vanish from the tab entirely — looking like the save failed
+  // when it just hasn't been measured yet. Carry it as an explicit pending row instead.
+  const accounted = new Set([...measured.map((r) => r.fullName), ...lastErrors.map((e) => e.repo)]);
+  const pending = configuredRepos
+    .filter((fullName) => !accounted.has(fullName))
+    .map((fullName) => ({ fullName, displayName: parseRepo(fullName)?.repo ?? fullName, pending: true }));
   return {
-    configured: hasToken && hasRepos,
+    configured: hasToken && configuredRepos.length > 0,
     hasToken,
     isMeasuring: measuring,
     lastRunAt: store.lastRunAt,
-    repos: summarize(store, GITHUB_TREND_LENGTH),
+    repos: [...measured, ...pending],
     errors: lastErrors,
   };
 }

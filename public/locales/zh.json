@@ -69,6 +69,7 @@
   "repos.needsRepos": "令牌已设置。请在设置中添加要跟踪的仓库（owner/repo）。",
   "repos.measuring": "测量中…",
   "repos.empty": "暂无数据。点击\"立即测量\"开始。",
+  "repos.pending": "尚未测量 — 请点击测量按钮。",
   "repos.referrers": "来源",
   "repos.paths": "热门路径",
   "repos.last14d": "最近 14 天",

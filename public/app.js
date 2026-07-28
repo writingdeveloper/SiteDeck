@@ -803,6 +803,14 @@ function renderRepos(data) {
   const rows = list
     .filter((r) => matchesFilter(r.displayName, state.filter))
     .map((r) => {
+      // Configured but never measured — say so on its own row instead of leaving the repo
+      // out of the table, which reads as "my save didn't take".
+      if (r.pending) {
+        return `<tr>
+          <td class="name">${siteLink(r.displayName, `https://github.com/${r.fullName}`)}</td>
+          <td colspan="6" class="empty">${t("repos.pending")}</td>
+        </tr>`;
+      }
       const tt = r.totals14d ?? {};
       const detail =
         repoDetail(t("repos.referrers"), r.referrers, (x) => `<li>${escapeHtml(x.referrer)} <span class="muted">${fmtNum(x.count)}</span></li>`) +

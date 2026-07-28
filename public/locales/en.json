@@ -69,6 +69,7 @@
   "repos.needsRepos": "A token is set. Add the repos to track (owner/repo) in Settings.",
   "repos.measuring": "Measuring…",
   "repos.empty": "No data yet. Press “Measure now” to start.",
+  "repos.pending": "Not measured yet — press Measure now.",
   "repos.referrers": "Referrers",
   "repos.paths": "Popular paths",
   "repos.last14d": "last 14 days",

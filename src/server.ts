@@ -560,7 +560,21 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
           return;
         }
       }
+      // Snapshot before the write so we can tell what actually changed.
+      const reposBefore = new Set(getGithubRepos());
+      const tokenBefore = getGithubToken();
       const s = await updateSettings(body as Partial<Settings>);
+
+      // Measure right away when the change makes new data collectable — a repo just added,
+      // or a token that just started working. Otherwise the tab shows nothing new until the
+      // daily tick, up to 24h later, with no hint that waiting is all that's left to do.
+      const reposAfter = getGithubRepos();
+      const tokenAfter = getGithubToken();
+      const addedRepo = reposAfter.some((r) => !reposBefore.has(r));
+      const newToken = tokenAfter !== null && tokenAfter !== tokenBefore;
+      const measurable = tokenAfter !== null && reposAfter.length > 0;
+      if (measurable && (addedRepo || newToken)) measureGithubNow();
+
       json(res, 200, {
         language: s.language ?? null,
         hasPsiKey: Boolean(s.psiApiKey),
