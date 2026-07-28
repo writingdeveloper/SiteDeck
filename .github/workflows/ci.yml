@@ -25,6 +25,8 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      # Same high/critical bar as `npm audit --audit-level=high`, but advisories with no safe
+      # fix can be waived with a reason and a review date instead of leaving CI permanently red.
+      - run: node scripts/audit-gate.mjs
       - run: npm run typecheck
       - run: npm test

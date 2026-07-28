@@ -20,14 +20,34 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       # Build the installer and publish it (plus the update metadata) to a GitHub Release.
-      - run: npm run release
+      #
+      # The retry is not superstition: electron-builder's publisher can race itself into
+      # `422 already_exists` while creating the release for a fresh tag (v0.9.0, v0.9.8).
+      # The loser aborts the step having uploaded only part of the assets, leaving a
+      # PUBLISHED but incomplete release. On a second attempt the release already exists,
+      # so it uploads into it instead of racing to create it — which is exactly what
+      # re-running the job by hand did both times.
+      - name: Build and publish
+        shell: bash
+        run: npm run release || { echo "publish failed — retrying once (see comment above)"; sleep 15; npm run release; }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # electron-builder occasionally races and publishes a second, blockmap-only
       # release for the same tag. Fold any stray release's assets back into the
       # canonical one and delete it. No-op when there's a single release.
+      # `always()`: a failed publish is exactly when a half-finished release needs folding.
       - name: Consolidate duplicate release
+        if: always()
         shell: bash
         run: bash scripts/consolidate-release.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Last line of defence: never leave a release published-but-broken. Without latest.yml
+      # electron-updater cannot see the update at all, and the build would otherwise report
+      # success. Runs even after a failure so the job's status reflects the RELEASE's state.
+      - name: Verify release assets
+        if: always()
+        shell: bash
+        run: bash scripts/verify-release.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
