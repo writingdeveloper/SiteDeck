@@ -17,19 +17,7 @@ import { execFileSync } from 'node:child_process';
  * Advisories we have decided to accept for now. Key = GHSA id.
  * `until` is a hard review date: past it, this gate fails until someone re-decides.
  */
-const WAIVERS = {
-  'GHSA-mh99-v99m-4gvg': {
-    package: 'brace-expansion',
-    until: '2026-10-31',
-    reason:
-      'No safe fix yet. The patched brace-expansion (5.0.8) drops the callable default from ' +
-      'its CJS build, and minimatch@9 — what electron-builder resolves — calls it as ' +
-      '`brace_expansion_1.default(pattern)`, so forcing 5.0.8 throws TypeError and breaks ' +
-      'file globbing during packaging (verified locally). Only minimatch@10 pairs with it, ' +
-      'and forcing that breaks the minimatch@3 consumers that call it as a function. ' +
-      'Waiting on electron-builder to move to minimatch@10.',
-  },
-};
+const WAIVERS = {};
 
 // npm is a .cmd shim on Windows, and since Node 20 those can only be spawned through a
 // shell. Every argument here is a fixed literal, so there is nothing for a shell to inject.
